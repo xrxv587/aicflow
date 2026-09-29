@@ -70,3 +70,7 @@ yarn dev <命令>      # tsx 直跑，如 yarn dev status
 yarn typecheck
 yarn build
 ```
+
+## 项目文档（Wiki）
+
+架构、命令行为、断点格式、引导注入机制与开发注意事项见 [docs/wiki/](./docs/wiki/Home.md)。AI 会话接手本仓库时请先读 [docs/wiki/Home.md](./docs/wiki/Home.md)。
