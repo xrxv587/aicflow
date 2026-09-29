@@ -1,0 +1,27 @@
+{
+  "name": "ai-continue",
+  "version": "0.1.0",
+  "description": "AI 跨会话任务断点工具：通过断点文件与引导文档，让 AI 客户端在下次会话自动续上未完成任务",
+  "license": "MIT",
+  "bin": {
+    "aic": "dist/index.js"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "commander": "^15.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
