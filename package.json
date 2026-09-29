@@ -1,7 +1,7 @@
 {
   "name": "ai-continue",
   "version": "0.1.0",
-  "description": "AI 跨会话任务断点工具：通过断点文件与引导文档，让 AI 客户端在下次会话自动续上未完成任务",
+  "description": "AI 协作工作流工具：PRD/TRD 共识先行、断点续接、验收归档全程留痕",
   "license": "MIT",
   "bin": {
     "aic": "dist/index.js"
@@ -11,6 +11,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
+    "test": "tsx --test src/core/current.test.ts src/core/guide.test.ts src/core/docs.test.ts src/core/acceptance.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "engines": {

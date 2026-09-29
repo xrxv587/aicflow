@@ -1,22 +1,28 @@
 # ai-continue
 
-AI 跨会话任务断点工具。通过「断点文件 + AI 引导」，让 Claude Code / Cursor 等 AI 客户端在新的会话里自动续上未完成的任务。
+AI 协作工作流工具。通过「注入 AI 引导 + PRD/TRD 文档 + 任务状态 + 验收归档」，让 Claude Code / Cursor 等 AI 客户端先与你达成需求与技术共识再编码，跨会话自动续接未完成任务，完成后整组归档留痕。工具本身不调用任何模型 API。
 
-## 工作机制
+## 两层设计
+
+CLI 只做三件事：**工件**（引导与模板的铺设）、**状态**（current.md 生命周期）、**门禁**（验收拦截与归档）。工作流本身——何时共识、何时建档、何时能编码——全部写在注入到 AGENTS.md 的引导里，由 AI 遵循执行。
 
 ```
-┌─ 会话开始 ──────────────────────────────────┐
-│ AI 按引导执行 `aic status`                    │
-│   → 知道：任务是什么、做到哪、还剩什么          │
-│   → 继续执行未完成的部分                       │
-│                                              │
-│ 阶段工作完成 / 会话结束前                      │
-│   → AI 直接编辑 `.ai-continue/current.md`     │
-│     更新待办勾选与上下文备注                    │
-└─ 断点留在项目里，下次会话重复这个循环 ──────────┘
+┌─ 收到新需求 ──────────────────────────────────┐
+│ AI 复述理解、只问会改变做法的问题                │
+│ 小改动：一句话对齐 → aic start → 直接做          │
+│ 大任务：确认目标/边界/验收                       │
+│   → AI 用模板写 PRD → 用户首肯                  │
+│   → AI 调研代码库写 TRD → 用户首肯              │
+│   → aic start <任务名> + 写指针 → 编码          │
+│                                               │
+│ 会话开始（含跨会话续接）→ aic status            │
+│ 执行中 → AI 直接编辑 current.md 与 PRD/TRD      │
+│                                               │
+│ 待办全部完成 ≠ 任务完成                         │
+│   → 按 PRD 验收标准逐条自检，证据写「验收」区    │
+│   → 验收报告获用户认可 → aic done --accepted    │
+│   → current + PRD + TRD 整组归档留痕 ───────────┘
 ```
-
-工具本身不调用任何模型 API，模型能力完全由用户的 AI 客户端提供。
 
 ## 安装（本地开发）
 
@@ -32,45 +38,55 @@ yarn link
 
 | 命令 | 说明 |
 |---|---|
-| `aic init [任务名] [-y]` | 初始化 `.ai-continue/current.md`，检测项目根的引导文件（CLAUDE.md / AGENTS.md / .cursorrules / GEMINI.md），确认后追加 AI 引导；没有引导文件时可创建 AGENTS.md |
-| `aic status` | 输出当前任务、待办进度与上下文；AI 会话开始时执行它来续上任务 |
-| `aic done [-f]` | 归档当前任务到 `.ai-continue/archive/`；有未完成项时会确认，`-f` 跳过确认与结构校验 |
+| `aic init [-y]` | 项目初始化：把 AI 引导注入项目根的引导文件（CLAUDE.md / AGENTS.md / .cursorrules / GEMINI.md，一个都没有时询问是否新建 AGENTS.md），并铺设 PRD/TRD 模板到 `.ai-continue/templates/`。幂等可重跑，已存在即跳过 |
+| `aic start [任务名] [-y]` | 开始一个新任务：创建 `.ai-continue/current.md`（已有任务需先 `aic done`）。PRD/TRD 不经此命令，由 AI 按引导先建文档、双首肯后再 start |
+| `aic status` | 输出当前任务、进度、下一步、需求指针与验收状态；AI 会话开始时执行它来续上任务 |
+| `aic done [-f] [--accepted]` | 归档当前任务：current.md 与需求目录（PRD/TRD）整组移入 `.ai-continue/archive/`。有 PRD 的任务设**验收门禁**：PRD「## 验收」区须有逐条自检记录，且需 `--accepted` 声明验收已获用户认可；`-f` 跳过全部门禁 |
 
-`status` 退出码：`0` 正常；`1` 未初始化；`2` 断点文件结构异常（输出具体修复提示）。
+`status` 退出码：`0` 正常；`1` 未开始任务；`2` current.md 结构异常（输出具体修复提示）。
 
-## 断点文件约定
+## 文件约定
 
-`.ai-continue/current.md`，Markdown 为主、少量固定结构：
+```
+.ai-continue/
+├── current.md               # 任务状态卡：小、必读、高频改写
+├── templates/
+│   ├── prd.md               # 需求文档模板（init 铺设，可自定义）
+│   └── trd.md               # 技术方案模板（同上）
+├── specs/<任务>/
+│   ├── prd.md               # 需求侧：已确认（目标/边界/验收标准）+ 未确认 + 验收
+│   └── trd.md               # 技术侧：方案、选型、影响范围、步骤、风险
+└── archive/<时间戳>-<任务>/  # done 归档：current.md + spec/{prd,trd}.md
+```
+
+`.ai-continue/current.md`（任务状态卡）：
 
 ```markdown
 ---
 task: 重构登录模块
 updated: 2026-09-29 14:30
+spec: specs/login-refactor/     # 可选，大任务由 AI 建档后写入
 ---
 
 ## 待办
 - [x] 拆出 API 层
 - [ ] 处理 token 刷新
 
-## 上下文
-决策、踩坑、涉及文件等，供下次会话快速恢复。
+## 下一步
+在 src/api/auth.ts 加 refresh 拦截器
 ```
 
-约定：
-
-- frontmatter：`task` 必填，`updated` 为最后更新时间（`YYYY-MM-DD HH:mm`）
-- 「## 待办」：只允许 `- [ ]` / `- [x]` checkbox 行
-- 「## 上下文」：自由 Markdown
-- 进度更新不经过命令，AI 直接编辑文件，`aic status` 负责结构校验
+PRD/TRD 由 AI 复制模板生成（CLI 不生成、不解析内容），CLI 依赖的格式不变量只有两条：frontmatter 的 `spec:` 指针指向存在的目录；PRD「## 验收」区有 checkbox 条目（归档门禁判据，空骨架不算）。
 
 ## 开发
 
 ```bash
 yarn dev <命令>      # tsx 直跑，如 yarn dev status
 yarn typecheck
+yarn test
 yarn build
 ```
 
 ## 项目文档（Wiki）
 
-架构、命令行为、断点格式、引导注入机制与开发注意事项见 [docs/wiki/](./docs/wiki/Home.md)。AI 会话接手本仓库时请先读 [docs/wiki/Home.md](./docs/wiki/Home.md)。
+架构、命令行为、文件格式、引导注入机制、开发注意事项见 [docs/wiki/](./docs/wiki/Home.md)。AI 会话接手本仓库时请先读 [docs/wiki/Home.md](./docs/wiki/Home.md)。

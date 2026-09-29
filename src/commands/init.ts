@@ -1,33 +1,13 @@
 import { appendFile, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { parse, readCurrent, renderTemplate, writeCurrent } from '../core/breakpoint.js';
-import { findGuideFiles, guideText, hasGuide } from '../core/guide.js';
-import { ask, confirm } from '../core/prompt.js';
+import { findGuideFiles, guideText, scanGuide } from '../core/guide.js';
+import { layTemplates } from '../core/docs.js';
+import { confirm, ask } from '../core/prompt.js';
 
-export async function runInit(taskArg: string | undefined, yes: boolean): Promise<void> {
-  const existing = await readCurrent(process.cwd());
-  if (existing !== null) {
-    const parsed = parse(existing);
-    const name = parsed.ok ? parsed.data.task : '（结构异常，见 aic status）';
-    console.log(`已初始化过，当前任务：${name}。如需开新任务，请先执行 aic done。`);
-    return;
-  }
-
-  let task = taskArg?.trim() ?? '';
-  if (!task && !yes) {
-    task = await ask('请输入任务名：');
-  }
-  if (!task) {
-    console.error('任务名不能为空：aic init [任务名]');
-    process.exitCode = 1;
-    return;
-  }
-
-  await writeCurrent(process.cwd(), renderTemplate(task));
-  console.log('已创建 .ai-continue/current.md');
-  console.log(`任务：${task}`);
-
+/** 项目初始化：注入 AI 引导 + 铺 PRD/TRD 模板，幂等可重跑 */
+export async function runInit(yes: boolean): Promise<void> {
   await injectGuide(yes);
+  await layTemplates(process.cwd());
   console.log('初始化完成。AI 会话开始时执行 `aic status` 即可续上任务。');
 }
 
@@ -48,34 +28,36 @@ async function injectGuide(yes: boolean): Promise<void> {
     return;
   }
 
-  const pending: string[] = [];
+  const targets: string[] = [];
   for (const name of candidates) {
     const content = await readFile(path.join(cwd, name), 'utf8');
-    if (hasGuide(content)) {
-      console.log(`${name} 已包含引导，跳过。`);
+    const scan = scanGuide(content);
+    if (scan.kind === 'present') {
+      console.log(`${name} 已包含 AI 引导，跳过。`);
+    } else if (scan.kind === 'malformed') {
+      console.log(`⚠ ${name} 的引导标记未闭合（有 start 无 end），跳过，请手动处理。`);
     } else {
-      pending.push(name);
+      targets.push(name);
     }
   }
-  if (pending.length === 0) {
+  if (targets.length === 0) {
     return;
   }
 
-  console.log('将注入以下 AI 引导内容：\n');
+  console.log('将写入以下 AI 引导内容：\n');
   console.log(guide);
   console.log('');
 
-  let target = pending[0];
-  if (pending.length > 1 && !yes) {
-    const list = pending.map((n, i) => `${i + 1}. ${n}`).join('  ');
-    const answer = await ask(`注入到哪个文件？${list}`, pending[0]);
+  let target = targets[0];
+  if (targets.length > 1 && !yes) {
+    const list = targets.map((t, i) => `${i + 1}. ${t}`).join('  ');
+    const answer = await ask(`应用到哪个文件？${list}`);
     const idx = Number(answer) - 1;
-    if (Number.isInteger(idx) && idx >= 0 && idx < pending.length) {
-      target = pending[idx];
+    if (Number.isInteger(idx) && idx >= 0 && idx < targets.length) {
+      target = targets[idx];
     }
   } else if (!yes) {
-    const okToAppend = await confirm(`是否将引导追加到 ${target} 末尾？`);
-    if (!okToAppend) {
+    if (!(await confirm(`是否将引导追加到 ${target} 末尾？`))) {
       console.log('已跳过引导注入。');
       return;
     }

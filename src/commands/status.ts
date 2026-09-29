@@ -1,9 +1,12 @@
-import { parse, readCurrent } from '../core/breakpoint.js';
+import { readFile } from 'node:fs/promises';
+import { parse, prdFilePath, readCurrent } from '../core/current.js';
+import { hasAcceptanceRecord } from '../core/acceptance.js';
 
 export async function runStatus(): Promise<void> {
-  const content = await readCurrent(process.cwd());
+  const cwd = process.cwd();
+  const content = await readCurrent(cwd);
   if (content === null) {
-    console.error('尚未初始化：请先运行 aic init [任务名]');
+    console.error('尚未开始任务：请先运行 aic start <任务名>');
     process.exitCode = 1;
     return;
   }
@@ -18,14 +21,15 @@ export async function runStatus(): Promise<void> {
     return;
   }
 
-  const { task, updated, todos, context } = result.data;
+  const { task, updated, spec, next, todos } = result.data;
   const doneCount = todos.filter((t) => t.done).length;
+  const finished = todos.length > 0 && doneCount === todos.length;
 
   let state: string;
   if (todos.length === 0) {
     state = '尚无待办条目';
-  } else if (doneCount === todos.length) {
-    state = '全部完成，可执行 aic done 归档';
+  } else if (finished) {
+    state = '全部完成，可验收后 aic done 归档';
   } else {
     state = '进行中';
   }
@@ -33,6 +37,26 @@ export async function runStatus(): Promise<void> {
   console.log(`任务：${task}`);
   console.log(`更新时间：${updated ?? '未知'}`);
   console.log(`进度：${doneCount}/${todos.length} 已完成（${state}）`);
+  if (spec) {
+    try {
+      const prd = await readFile(prdFilePath(cwd, spec), 'utf8');
+      console.log(`需求：${spec}`);
+      console.log(`验收：${hasAcceptanceRecord(prd) ? '已记录' : '未记录'}`);
+    } catch {
+      console.log(`需求：${spec}（⚠ 目录或 prd.md 缺失）`);
+    }
+  }
+
+  console.log('');
+  console.log('下一步：');
+  if (next) {
+    for (const line of next.split('\n')) {
+      console.log(`  ${line}`);
+    }
+  } else if (!finished) {
+    console.log('  （未设置，建议写明当前最要紧的动作，精确到文件/函数）');
+  }
+
   console.log('');
   console.log('待办：');
   if (todos.length === 0) {
@@ -40,11 +64,5 @@ export async function runStatus(): Promise<void> {
   }
   for (const t of todos) {
     console.log(`  [${t.done ? 'x' : ' '}] ${t.text}`);
-  }
-  console.log('');
-  console.log('上下文：');
-  const ctx = context || '（空）';
-  for (const line of ctx.split('\n')) {
-    console.log(`  ${line}`);
   }
 }

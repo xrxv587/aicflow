@@ -2,76 +2,103 @@
 
 [← 返回首页](./Home.md)
 
+## 两层设计
+
+```
+CLI（aic）＝工件 + 状态 + 门禁              AGENTS.md 引导＝工作流规范
+├─ init：注入引导 + 铺 PRD/TRD 模板         ├─ 入口：复述→分级→共识
+├─ start：current.md 出生                   ├─ PRD：AI 起草→用户首肯
+├─ status：读取 + 校验                      ├─ TRD：AI 调研代码库起草→用户首肯
+└─ done：验收门禁 + 归档                    ├─ 续接：会话开始 aic status
+                                           ├─ 执行：直接编辑文件
+                                           └─ 出口：先验收后归档
+```
+
+判断归属的尺子：**CLI 解析/拦截什么，什么就留在命令里；CLI 只读不写的，生成权归 AI**。current.md 是被 parse 的状态文件，出生结构由代码保证（start）；PRD/TRD 只被读（指针存在性、验收记录），由 AI 按引导复制模板生成。
+
 ## 分层结构
 
 ```
 src/
-├── index.ts          # CLI 入口：commander 定义 3 个命令 + 顶层错误兜底
+├── index.ts          # CLI 入口：commander 定义 4 个命令 + 顶层错误兜底
 ├── commands/         # 每个命令一个入口函数，只做流程编排与终端输出
-│   ├── init.ts       #   runInit() + 私有 injectGuide()
+│   ├── init.ts       #   runInit() + 私有 injectGuide()（注入引导，幂等）
+│   ├── start.ts      #   runStart()（开新任务：建 current.md）
 │   ├── status.ts     #   runStatus()
 │   └── done.ts       #   runDone()
-└── core/             # 纯逻辑层，与 commander 无耦合
-    ├── breakpoint.ts #   断点文件的常量、类型、渲染、解析校验、读写、归档
-    ├── guide.ts      #   AI 引导文案、引导文件探测、幂等标记
+└── core/             # 纯逻辑层，与 commander 无耦合（*.test.ts 为单测）
+    ├── current.ts    #   current.md 的常量、类型、渲染、解析校验、读写、整组归档
+    ├── docs.ts       #   PRD/TRD 模板常量 + layTemplates()（铺设，存在即跳过）
+    ├── guide.ts      #   引导文案、块识别（none/present/malformed）
+    ├── acceptance.ts #   hasAcceptanceRecord()（验收门禁判据）
     └── prompt.ts     #   readline 封装：ask() / confirm()
 ```
 
-依赖方向：`index.ts → commands/* → core/*`。core 内部互不依赖，commands 只引用 core。
+依赖方向：`index.ts → commands/* → core/*`。core 内部只有 docs.ts → current.ts 单向依赖（复用 `AI_DIR`）；commands 只引用 core。
 
 ## 文件与关键导出
 
 ### `src/index.ts`
-- commander `program`：`aic init [task] [-y]` / `aic status` / `aic done [-f]`，版本 0.1.0。
-- `parseAsync().catch()`：**所有未捕获异常的统一出口**——打印 `err.message` 到 stderr 后 `exit(1)`。所以 core 里除 ENOENT 外的 IO 错误会以退出码 1 结束且无堆栈。
+- commander `program`：`aic init [-y]` / `aic start [task] [-y]` / `aic status` / `aic done [-f] [--accepted]`，版本 0.1.0。
+- 旧用法拦截：`aic init <任务名>` 与 `aic start --spec` 均在 action 里报错并给中文指引（`--spec` 为隐藏选项，仅为截获报错）。
+- `parseAsync().catch()`：**所有未捕获异常的统一出口**——打印 `err.message` 到 stderr 后 `exit(1)`。
 
-### `src/core/breakpoint.ts`
-- 常量：`BREAKPOINT_DIR = '.ai-continue'`、`CURRENT_FILE = '.ai-continue/current.md'`、`ARCHIVE_DIR = '.ai-continue/archive'`。
-- 类型：`TodoItem {text, done}`、`Breakpoint {task, updated, todos, context}`、`ParseResult`（ok 判别联合）。
-- `formatNow(date?)`：本地时间 `YYYY-MM-DD HH:mm`。
-- `renderTemplate(task)`：新建断点文件的初始模板（含初始 `updated`）。
-- `parse(content)`：**唯一的格式裁判**，返回错误数组。规则详见 [breakpoint-format](./breakpoint-format.md)。
-- `readCurrent(cwd)`：读文件；ENOENT → `null`（表示"未初始化"），其他错误直接抛出。
-- `writeCurrent(cwd, content)`：`mkdir -p` 后写文件。
-- `archiveCurrent(cwd, task)`：把 `current.md` rename 到 `archive/` 下，文件名 = `时间戳-安全化任务名.md`，返回相对路径。
+### `src/core/current.ts`
+- 常量：`AI_DIR`、`CURRENT_FILE`、`ARCHIVE_DIR`。
+- 类型：`TodoItem`、`TaskState {task, updated, spec, next, todos}`、`ParseResult`。
+- `slugify(task)`：仅用于归档目录命名；specs 目录名由 AI 按引导的同类规则自取。
+- `renderTemplate(task)`：current.md 出生模板，**不含 spec 指针**（由 AI 建档后写入 frontmatter）。
+- `parse(content)`：**唯一的格式裁判**，规则详见 [format](./format.md)。
+- `readCurrent` / `writeCurrent`：读写 current.md；ENOENT → `null` 表示未开始任务。
+- `specDirPath` / `prdFilePath`：把 frontmatter 的 `spec` 值解析为绝对路径（相对 `.ai-continue/`）。
+- `archiveTask(cwd, task, spec)`：整组归档 → `archive/<时间戳>-<slug>/{current.md, spec/}`；**以指针值为准移动需求目录**（不按任务名重算，避免与 AI 自取的目录名不一致）；指针悬空时返回 `specMissing` 不阻断。
+
+### `src/core/docs.ts`
+- `PRD_TEMPLATE` / `TRD_TEMPLATE`：模板全文（占位符 `<需求名>`、`<任务名>`、`<YYYY-MM-DD HH:mm>`）。
+- `layTemplates(cwd)`：铺设到 `.ai-continue/templates/`，存在即跳过（尊重项目自定义）。
 
 ### `src/core/guide.ts`
 - `GUIDE_FILES`：探测顺序 `CLAUDE.md > AGENTS.md > .cursorrules > GEMINI.md`。
-- `GUIDE_START` / `GUIDE_END`：HTML 注释标记，包围整个注入块。
-- `guideText()`：引导文案全文（三段：会话开始 / 阶段完成或会话结束前 / 任务全部完成）。
-- `findGuideFiles(cwd)`：返回存在的候选引导文件名列表。
-- `hasGuide(content)`：`content.includes(GUIDE_START)`，幂等判断。
+- `guideText()`：引导全文（工作流四段：收到新需求 / 会话开始 / 执行中 / 先验收后归档）。
+- `scanGuide(content)`：`none` / `present`（跳过）/ `malformed`（有 start 无 end，跳过并警告）。标记无版本号。
+
+### `src/core/acceptance.ts`
+- `hasAcceptanceRecord(content)`：「## 验收」章节内是否有 checkbox 条目——**模板自带的空章节不算**，门禁判据是条目而非章节存在。
 
 ### `src/core/prompt.ts`
-- `ask(question, fallback?)`：读一行输入，空输入回退 fallback。
-- `confirm(question, fallback=false)`：y/yes 判定，提示 `[y/N]` 或 `[Y/n]`。
+- `ask(question, fallback?)`、`confirm(question, fallback=false)`：readline 封装。
 
-## 三条数据流
+## 数据流（四条）
 
-1. **会话开始（读）**：AI 客户端（被注入的引导驱动）→ `aic status` → `readCurrent` → `parse` → 人类可读的任务/进度/上下文输出 → AI 与用户确认后继续。
-2. **工作过程（写，绕过 CLI）**：AI **直接编辑** `.ai-continue/current.md`，CLI 不提供编辑命令。这是刻意设计：编辑路径零依赖、任意客户端可用；格式被改坏的风险由 `parse` 的结构校验兜底（`aic status` 退出码 2 会给出具体修复提示）。
-3. **任务结束（归档）**：`aic done` → `parse` 校验 + 未完成确认 → `archiveCurrent` rename 到 `archive/`。
+1. **需求入口（对话 + AI 建档，CLI 只出生状态）**：AI 按引导确认目标/边界/验收 → 复制模板写 `specs/<任务>/prd.md` → 用户首肯 → AI 调研后写 `trd.md` → 用户首肯 → `aic start <任务名>` → AI 把 `spec:` 指针写入 frontmatter → 编码。小改动一句话对齐 + `aic start` 即做，不建文档。
+2. **会话开始（读）**：AI 执行 `aic status` → 读 current.md → parse → 输出任务/进度/下一步/需求与验收状态 → 确认后从「下一步」接续。PRD/TRD 按需再读。
+3. **执行中（写，绕过 CLI）**：AI 直接编辑 current.md（待办、下一步、updated）；需求类发现写 PRD「未确认」，动「已确认」须先经用户；方案级调整先改 TRD。格式被改坏由 `parse` 校验兜底（status 退出码 2）。
+4. **结束（验收 → 归档）**：AI 按 PRD 验收标准逐条自检并写「验收」区 → 输出验收报告获用户认可 → `aic done --accepted` → 结构校验 + 未完成确认 + **验收门禁** → `archiveTask` 整组移动。
 
 ## 设计决策
 
 | 决策 | 理由 |
 |---|---|
-| 工具无模型依赖、无服务端 | 所有智能在用户 AI 客户端；CLI 只做状态存取与校验，可离线、可审计 |
-| 校验单一出口（`parse`） | status 用它展示、done 用它拦截、init 用它读任务名，三处行为一致 |
-| 引导注入用标记做幂等 | 重复 `aic init` 不会重复注入同一份引导 |
-| 进度更新不经命令 | AI 直接编辑文件，避免为编辑行为设计 CLI 协议 |
-| 所有路径基于 `process.cwd()`，**不向上查找父目录** | 简单可预期；代价是在项目子目录里运行会得到"尚未初始化" |
-| `.gitignore` 不忽略 `.ai-continue/` | 断点随仓库提交，团队成员 / 其他会话都能看到任务状态 |
+| 两层：CLI 管工件/状态/门禁，引导管工作流 | 智能在 AI 客户端；CLI 越界生成内容（旧 `--spec`）会把工作流判断搬进命令 |
+| start/done 是命令而非 AI 自由编辑 | 它们是状态机（无任务→进行中→已归档）的迁移边；边留在命令里才有单任务守卫与硬门禁 |
+| PRD/TRD 由 AI 复制模板生成 | CLI 只读不写；复制优于重打（漂移率低）；模板是仓库文件，项目可自定义 |
+| 门禁 fail-closed | 格式漂移最多导致被拦下修正，不会放水未验收任务 |
+| 归档以指针为准移动目录 | AI 自取的目录名与 slugify 可能不一致，指针是唯一真相 |
+| 工具无模型依赖、无服务端 | 所有智能在用户 AI 客户端；CLI 只做状态存取与校验 |
+| 校验单一出口（`parse`） | status / done / start 三处行为一致 |
+| 所有路径基于 `process.cwd()`，**不向上查找** | 简单可预期；子目录运行会得到"尚未开始任务" |
+| `.gitignore` 不忽略 `.ai-continue/` | 断点与需求文档随仓库提交，团队共享 |
 
 ## 边界行为清单（改代码 / 排查前先看）
 
-- `readCurrent` 只把 ENOENT 当"未初始化"；权限错误等其他 IO 异常直接抛到顶层 `exit(1)`。
-- `init` 时已存在 `current.md`：只提示当前任务名并正常退出（退出码 0），**绝不覆盖**；结构损坏时任务名显示为"（结构异常，见 aic status）"。
-- `init -y` 且有多个待注入引导文件：**静默注入第一个**（按探测顺序中第一个不含标记的），不询问。
-- 引导追加的分隔符：目标文件末尾无换行 → 补 `\n\n`；已有换行 → 补 `\n`。
-- `init -y` 没有默认任务名——任务名仍必须提供，否则退出码 1。
-- `done --force` 在结构损坏时拿不到解析结果（data=null），归档文件名的任务段回退为 `task`。
-- `parse` 对首行用 `trim()` 判断 `---`（允许行首空白），但闭合的 `---` 必须是整行精确匹配（`indexOf('---', 1)`）。
-- 同名 `##` 章节出现多次时内容会**合并**进同一个 key（`splitSections` 只在首次出现时建数组）。
-- 「## 待办」「## 上下文」之外的章节**允许存在且被忽略**，不报错。
-- `updated` 缺失时 `aic status` 显示"未知"，不影响退出码。
+- `readCurrent` 只把 ENOENT 当"未开始任务"；其他 IO 异常抛到顶层 `exit(1)`。
+- `start` 已存在 current.md：只提示任务名并正常退出（退出码 0），**绝不覆盖**；结构损坏时显示"（结构异常，见 aic status）"。
+- `start -y` 没有默认任务名——不带任务名照样退出码 1。
+- `start` 不注入引导、不建 PRD/TRD；检测不到引导时打印一行提示建议 `aic init`。
+- `init` 带任务名参数：报错提示改用 `aic start`，退出码 1。
+- 引导注入与模板铺设均为"存在即跳过"；引导标记未闭合（有 start 无 end）的文件跳过并警告，绝不盲改。
+- `status` 的 spec 指针悬空只**警告**，不改退出码（current.md 本身结构合法）。
+- `done --force` 拿不到解析结果时归档名任务段回退 `task`；指针悬空时仅归档 current.md 并提示。
+- `done` 的门禁顺序：未完成确认 → PRD 可读性 → 验收记录存在 → `--accepted`/TTY 确认；**无 PRD 的任务不设验收门禁**（分级豁免）。
+- 验收判据是「## 验收」章节内的 checkbox 条目，不是章节存在——模板自带空章节，只查章节会被空骨架骗过。
+- `parse` 首行用 `trim()` 判断 `---`，闭合 `---` 必须整行精确匹配；同名 `##` 章节内容合并；「待办」之外允许多余章节。
