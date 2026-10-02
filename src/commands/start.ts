@@ -3,6 +3,7 @@ import path from 'node:path';
 import { parse, readCurrent, renderTemplate, writeCurrent } from '../core/current.js';
 import { findGuideFiles, scanGuide } from '../core/guide.js';
 import { ask } from '../core/prompt.js';
+import { ExitCode } from '../core/exit.js';
 
 /**
  * 开始一个新任务：创建 current.md（状态文件出生）。
@@ -23,7 +24,7 @@ export async function runStart(taskArg: string | undefined, yes: boolean): Promi
   }
   if (!task) {
     console.error('任务名不能为空：aic start [任务名]');
-    process.exitCode = 1;
+    process.exitCode = ExitCode.NoTaskOrRejected;
     return;
   }
 

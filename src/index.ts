@@ -5,6 +5,7 @@ import { runInit } from './commands/init.js';
 import { runStart } from './commands/start.js';
 import { runStatus } from './commands/status.js';
 import { runDone } from './commands/done.js';
+import { ExitCode } from './core/exit.js';
 
 const program = new Command();
 
@@ -21,7 +22,7 @@ program
   .action((task, options) => {
     if (task !== undefined) {
       console.error('aic init 不创建任务，请使用 aic start <任务名>');
-      process.exitCode = 1;
+      process.exitCode = ExitCode.NoTaskOrRejected;
       return;
     }
     return runInit(options.yes);
@@ -36,7 +37,7 @@ program
   .action((task, options) => {
     if (options.spec) {
       console.error('aic start 不再接受 --spec：PRD/TRD 由 AI 按引导用模板生成，双首肯后再 aic start');
-      process.exitCode = 1;
+      process.exitCode = ExitCode.NoTaskOrRejected;
       return;
     }
     return runStart(task, options.yes);
@@ -56,5 +57,5 @@ program
 
 program.parseAsync().catch((err: Error) => {
   console.error(err.message);
-  process.exit(1);
+  process.exit(ExitCode.NoTaskOrRejected);
 });

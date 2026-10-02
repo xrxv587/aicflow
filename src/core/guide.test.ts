@@ -11,6 +11,7 @@ test('guideText 以 start 标记开头、以 end 标记结尾', () => {
 test('guideText 含工作流关键协议：aic start、PRD/TRD 双首肯、验收归档', () => {
   const t = guideText();
   assert.ok(t.includes('aic start <任务名>'));
+  assert.ok(t.includes('npx aic'));
   assert.ok(t.includes('PRD 交用户首肯'));
   assert.ok(t.includes('TRD 交用户首肯'));
   assert.ok(t.includes('templates/prd.md'));

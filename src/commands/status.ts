@@ -1,13 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { parse, prdFilePath, readCurrent } from '../core/current.js';
 import { hasAcceptanceRecord } from '../core/acceptance.js';
+import { ExitCode } from '../core/exit.js';
 
 export async function runStatus(): Promise<void> {
   const cwd = process.cwd();
   const content = await readCurrent(cwd);
   if (content === null) {
     console.error('尚未开始任务：请先运行 aic start <任务名>');
-    process.exitCode = 1;
+    process.exitCode = ExitCode.NoTaskOrRejected;
     return;
   }
 
@@ -17,7 +18,7 @@ export async function runStatus(): Promise<void> {
     for (const err of result.errors) {
       console.error(`  - ${err}`);
     }
-    process.exitCode = 2;
+    process.exitCode = ExitCode.MalformedState;
     return;
   }
 
