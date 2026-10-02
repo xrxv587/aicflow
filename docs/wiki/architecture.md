@@ -31,7 +31,8 @@ src/
     ├── docs.ts       #   PRD/TRD 模板常量 + layTemplates()（铺设，存在即跳过）
     ├── guide.ts      #   引导文案、块识别（none/present/malformed）
     ├── acceptance.ts #   hasAcceptanceRecord()（验收门禁判据）
-    └── prompt.ts     #   readline 封装：ask() / confirm()
+    ├── prompt.ts     #   readline 封装：ask() / confirm()
+    └── exit.ts       #   ExitCode 枚举（退出码协议：0 正常 / 1 无任务或门禁拒绝 / 2 结构异常）
 ```
 
 依赖方向：`index.ts → commands/* → core/*`。core 内部只有 docs.ts → current.ts 单向依赖（复用 `AI_DIR`）；commands 只引用 core。
