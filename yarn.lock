@@ -239,6 +239,13 @@
   resolved "https://registry.npmmirror.com/@typescript/typescript-win32-x64/-/typescript-win32-x64-7.0.2.tgz#cf3b7b0d6ce5635daca4c8e01c189cdcde47ec3c"
   integrity sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g==
 
+aicflow@^0.1.0:
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/aicflow/-/aicflow-0.1.0.tgz#c2ec0dd49decd1f6b2fbba61d18897d7a96e2324"
+  integrity sha512-BNyUPQ5Dy42cobDGJROYY+1koafl5XP6Kn1b8O1oSU38LkKnioT22hdVcDprz/SVcJq39JAGALXVFld+ptaQqA==
+  dependencies:
+    commander "^15.0.0"
+
 commander@^15.0.0:
   version "15.0.0"
   resolved "https://registry.npmmirror.com/commander/-/commander-15.0.0.tgz#96f3961f12adac1799ef3fbd8bc61d40572d1b11"

@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { archiveTask, parse, prdFilePath, readCurrent } from '../core/current.js';
 import { confirm } from '../core/prompt.js';
 import { hasAcceptanceRecord } from '../core/acceptance.js';
+import { ExitCode } from '../core/exit.js';
 
 async function readPrd(cwd: string, spec: string): Promise<string | null> {
   try {
@@ -16,7 +17,7 @@ export async function runDone(force: boolean, accepted: boolean): Promise<void> 
   const content = await readCurrent(cwd);
   if (content === null) {
     console.error('尚未开始任务：没有可归档的任务');
-    process.exitCode = 1;
+    process.exitCode = ExitCode.NoTaskOrRejected;
     return;
   }
 
@@ -26,7 +27,7 @@ export async function runDone(force: boolean, accepted: boolean): Promise<void> 
     for (const err of result.errors) {
       console.error(`  - ${err}`);
     }
-    process.exitCode = 2;
+    process.exitCode = ExitCode.MalformedState;
     return;
   }
 
@@ -49,12 +50,12 @@ export async function runDone(force: boolean, accepted: boolean): Promise<void> 
     const prd = await readPrd(cwd, data.spec);
     if (prd === null) {
       console.error(`需求目录或 prd.md 缺失：${data.spec}。修复指针后重试，或使用 --force 跳过。`);
-      process.exitCode = 1;
+      process.exitCode = ExitCode.NoTaskOrRejected;
       return;
     }
     if (!hasAcceptanceRecord(prd)) {
       console.error('prd.md 缺少「## 验收」记录：先按「已确认 · 验收标准」逐条自检并写入 PRD，再归档（--force 可跳过）。');
-      process.exitCode = 1;
+      process.exitCode = ExitCode.NoTaskOrRejected;
       return;
     }
     if (!accepted) {
@@ -66,7 +67,7 @@ export async function runDone(force: boolean, accepted: boolean): Promise<void> 
         }
       } else {
         console.error('有 PRD 的任务归档需要 --accepted：先向用户输出验收报告，获明确认可后再执行（--force 可跳过）。');
-        process.exitCode = 1;
+        process.exitCode = ExitCode.NoTaskOrRejected;
         return;
       }
     }

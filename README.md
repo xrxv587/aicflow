@@ -43,12 +43,17 @@ After that, the `aic` command is available in any project directory.
 
 | Command | Description |
 |---|---|
-| `aic init [-y]` | Initialize a project: inject the AI guidance into a guidance file at the project root (CLAUDE.md / AGENTS.md / .cursorrules / GEMINI.md; asks whether to create AGENTS.md if none of them exists), and lay the PRD/TRD templates into `.ai-continue/templates/`. Idempotent — safe to re-run; anything that already exists is skipped |
+| `aic init [-y] [--hooks]` | Initialize a project: inject the AI guidance into a guidance file at the project root (CLAUDE.md / AGENTS.md / .cursorrules / GEMINI.md; asks whether to create AGENTS.md if none of them exists), and lay the PRD/TRD templates into `.ai-continue/templates/`. Idempotent — safe to re-run; anything that already exists is skipped. With `--hooks`, also lays hardening hook configs for Claude Code / Codex / ZCode (see below) |
 | `aic start [task-name] [-y]` | Start a new task: creates `.ai-continue/current.md` (an existing task must be closed with `aic done` first). PRD/TRD do not go through this command — following the guidance, the AI creates the documents first and runs `start` only after both are approved |
 | `aic status` | Print the current task, progress, next step, requirement pointer, and acceptance status; the AI runs this at the start of a session to pick the task back up |
 | `aic done [-f] [--accepted]` | Archive the current task: moves current.md and the spec directory (PRD/TRD) as a group into `.ai-continue/archive/`. Tasks that have a PRD carry an **acceptance gate**: the PRD "## Acceptance" section must contain a self-check record for each criterion, and `--accepted` must declare that the user has signed off on the acceptance; `-f` skips all gates |
+| `aic hook <event> --client <id>` / `aic hooks [--remove]` | Hook plumbing and management — see "Hooks Hardening" below |
 
 `status` exit codes: `0` OK; `1` no task started; `2` malformed current.md (specific repair hints are printed).
+
+## Hooks Hardening (optional)
+
+Guidance is a soft constraint; hooks upgrade the three most-bypassed links into client-level defenses (guards against accidental bypass, not adversarial bypass): **session start** injects the `aic status` report automatically; **new-requirement prompts** trigger a triage reminder; **file edits with no task in progress** are escalated to the user for approval (`ask` on Claude Code / ZCode; Codex degrades to a model-visible reminder). Install with `aic init --hooks` (idempotent, only touches its own entries), uninstall with `aic hooks --remove`. Core CLI stays client-agnostic; details in [docs/wiki/hooks.md](./docs/wiki/hooks.md).
 
 ## File Layout
 

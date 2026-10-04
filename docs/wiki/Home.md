@@ -24,6 +24,7 @@
 | [architecture](./architecture.md) | 代码地图、数据流、设计决策、边界行为清单 |
 | [cli](./cli.md) | `init` / `start` / `status` / `done` 的完整行为、交互流程、退出码矩阵 |
 | [format](./format.md) | 目录布局、current.md 与 PRD/TRD 格式规范、解析规则、归档结构 |
+| [hooks](./hooks.md) | 客户端钩子加固：三层防线、三客户端能力矩阵、安装与卸载 |
 | [guide-injection](./guide-injection.md) | AI 引导内容与注入机制 |
 | [development](./development.md) | 环境与脚本、ESM 约定、yarn link 本地联调、改动注意事项 |
 
@@ -56,7 +57,7 @@
 
 ## 仓库内特殊文件说明
 
-- `.ai-continue/`：本仓库自身没有这个目录，由使用方项目生成。`.gitignore` **没有**忽略它——断点与需求文档默认随 Git 提交，团队共享任务状态。
+- `.ai-continue/`：由使用方项目生成，**随 Git 提交**（`.gitignore` 没有忽略它）——断点与需求文档团队共享。2026-10 起本仓库自身也 dogfood：`specs/` 下是进行中任务的 PRD/TRD，`archive/` 是已归档任务的留痕。
 - `.joycode/`：本机 AI 客户端的本地目录，与本工具无关，不参与构建。
 
 ## 设计决策记录
@@ -65,4 +66,5 @@
 - **PRD/TRD 双首肯**：大任务 PRD（需求共识）与 TRD（技术方案）都必须获用户首肯才能编码；文档放 `specs/<任务>/` 内，done 整组归档天然留痕，零归档代码。
 - **门禁 fail-closed**：CLI 对文档格式的依赖只有两条不变量（`spec:` 指针目录存在、PRD「## 验收」区有 checkbox 条目）；格式漂移只会导致"被拦下修正"，不会放水。
 - **版本与兼容**：未投入使用，版本从 0.1.0 起步，不写升级/兼容逻辑；引导与模板均为"存在即跳过"，需要更新时手动删除重跑 `aic init`。
-- **明确不做**：hooks 加固（实测 AI 遵守引导，降为可选方向）、多任务并行、`--json` 输出、CLI 解析 PRD/TRD 内容。
+- **hooks 加固（2026-10-04 落地）**：把开场续接 / 新需求分级 / 编码前 start 三个环节升级为客户端级防线（提醒＋ask 上抛＋注入），可选层、按客户端适配，详见 [hooks](./hooks.md)。防失误性绕过，不防对抗（Bash 写入检测明确不做）。
+- **明确不做**：多任务并行、`--json` 输出、CLI 解析 PRD/TRD 内容。

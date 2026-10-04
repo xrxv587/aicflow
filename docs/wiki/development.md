@@ -11,11 +11,24 @@
 yarn install
 yarn dev <命令>      # tsx 直跑源码，如 yarn dev status
 yarn typecheck       # tsc --noEmit
-yarn test            # node:test 跑 core 层单测（18 例）
+yarn test            # node:test 跑 core 层单测（26 例）
 yarn build           # tsc 编译到 dist/
 ```
 
-单测覆盖 `parse`、引导文案与识别、模板内容与铺设幂等、验收记录判定（`src/core/*.test.ts`）。改这些逻辑必须补用例；命令层（commands/）靠手动冒烟——在临时目录走完整流程（见下），验证退出码（1=未开始任务或门禁拒绝、2=结构坏）与归档结构，务必覆盖"验收拒绝 → `--accepted` 归档"路径。
+单测覆盖 `parse`、引导文案与识别、模板内容与铺设幂等、验收记录判定、钩子（payload 归一化/触发词/路径排除/客户端输出/安装卸载幂等）（`src/core/*.test.ts`）。改这些逻辑必须补用例；命令层（commands/）靠手动冒烟——在临时目录走完整流程（见下），验证退出码（1=未开始任务或门禁拒绝、2=结构坏）与归档结构，务必覆盖"验收拒绝 → `--accepted` 归档"路径。
+
+钩子冒烟补充（临时目录，模拟 node_modules/aicflow 已安装后）：
+
+```bash
+aic init -y --hooks                            # 三份配置生成；重跑应全部"已存在跳过"
+echo '{"tool_input":{"file_path":"/abs/src/a.ts"}}' | aic hook pretooluse --client zcode
+# 无任务 → ask JSON；建任务后同 payload → 无输出（静默放行）
+echo '{"prompt":"我有个新需求"}' | aic hook userpromptsubmit --client claude   # 注入提醒
+echo 'bad-json' | aic hook pretooluse --client zcode                            # fail-open 静默
+aic hooks --remove                             # 自身条目移除、用户条目保留
+```
+
+注意：钩子轻量入口是 `dist/hook.js`（不经 commander，自身开销 ~16ms，总时长由 Node 启动主导）；真机客户端联测（ZCode/Claude Code/Codex 实际触发）需要对应客户端环境，按 [hooks](./hooks.md) 能力矩阵逐项核对。
 
 ## ESM / NodeNext 约定
 

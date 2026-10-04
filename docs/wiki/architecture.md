@@ -20,21 +20,27 @@ CLI（aic）＝工件 + 状态 + 门禁              AGENTS.md 引导＝工作�
 
 ```
 src/
-├── index.ts          # CLI 入口：commander 定义 4 个命令 + 顶层错误兜底
+├── index.ts          # CLI 入口：commander 定义 6 个命令 + 顶层错误兜底
+├── hook.ts           # 钩子轻量入口（不经 commander，客户端配置直指 dist/hook.js，控制同步开销）
 ├── commands/         # 每个命令一个入口函数，只做流程编排与终端输出
-│   ├── init.ts       #   runInit() + 私有 injectGuide()（注入引导，幂等）
+│   ├── init.ts       #   runInit() + 私有 injectGuide()（注入引导，幂等）；--hooks 时铺钩子配置
 │   ├── start.ts      #   runStart()（开新任务：建 current.md）
 │   ├── status.ts     #   runStatus()
-│   └── done.ts       #   runDone()
+│   ├── done.ts       #   runDone()
+│   ├── hook.ts       #   runHook()（钩子管道：stdin payload → 决策/注入）
+│   └── hooks.ts      #   runHooks()（钩子接入管理：查看/重铺/--remove 卸载）
 └── core/             # 纯逻辑层，与 commander 无耦合（*.test.ts 为单测）
     ├── current.ts    #   current.md 的常量、类型、渲染、解析校验、读写、整组归档
     ├── docs.ts       #   PRD/TRD 模板常量 + layTemplates()（铺设，存在即跳过）
     ├── guide.ts      #   引导文案、块识别（none/present/malformed）
     ├── acceptance.ts #   hasAcceptanceRecord()（验收门禁判据）
-    └── prompt.ts     #   readline 封装：ask() / confirm()
+    ├── prompt.ts     #   readline 封装：ask() / confirm()
+    ├── exit.ts       #   ExitCode 枚举（退出码协议：0 正常 / 1 无任务或门禁拒绝 / 2 结构异常）
+    └── hook/         #   钩子核心（详见 hooks.md）：payload 归一化、三事件处理、
+                       #   客户端输出格式分支、fail-open 分发、三客户端配置安装/卸载
 ```
 
-依赖方向：`index.ts → commands/* → core/*`。core 内部只有 docs.ts → current.ts 单向依赖（复用 `AI_DIR`）；commands 只引用 core。
+依赖方向：`index.ts → commands/* → core/*`。core 内部 docs.ts 与 hook/ 均单向依赖 current.ts；commands 只引用 core。
 
 ## 文件与关键导出
 

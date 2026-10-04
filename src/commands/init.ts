@@ -3,11 +3,25 @@ import path from 'node:path';
 import { findGuideFiles, guideText, scanGuide } from '../core/guide.js';
 import { layTemplates } from '../core/docs.js';
 import { confirm, ask } from '../core/prompt.js';
+import { installHooks } from '../core/hook/install.js';
+import { HOOK_EVENTS } from '../core/hook/payload.js';
 
-/** 项目初始化：注入 AI 引导 + 铺 PRD/TRD 模板，幂等可重跑 */
-export async function runInit(yes: boolean): Promise<void> {
+/** 项目初始化：注入 AI 引导 + 铺 PRD/TRD 模板，幂等可重跑；--hooks 时铺设三客户端钩子配置 */
+export async function runInit(yes: boolean, hooks: boolean): Promise<void> {
   await injectGuide(yes);
   await layTemplates(process.cwd());
+  if (hooks) {
+    const { outcomes, pkgMissing } = await installHooks(process.cwd(), HOOK_EVENTS);
+    if (pkgMissing) {
+      console.error('⚠ 未找到 node_modules/aicflow/dist/hook.js，已跳过钩子铺设：请先安装 aicflow 再运行 aic init --hooks。');
+    } else {
+      for (const o of outcomes) {
+        const added = o.added.length > 0 ? `已写入 ${o.added.join('、')}` : '已全部存在，跳过';
+        console.log(`钩子 ${o.client} → ${o.file}：${added}`);
+      }
+      console.log('注意（Codex）：钩子需在 Codex CLI 内执行 /hooks 审阅并信任后才会运行；且 Codex 不支持批准上抛（ask），过程防线降级为模型可见提醒。');
+    }
+  }
   console.log('初始化完成。AI 会话开始时执行 `aic status` 即可续上任务。');
 }
 

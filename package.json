@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
-    "test": "tsx --test src/core/current.test.ts src/core/guide.test.ts src/core/docs.test.ts src/core/acceptance.test.ts",
+    "test": "tsx --test src/core/current.test.ts src/core/guide.test.ts src/core/docs.test.ts src/core/acceptance.test.ts src/core/hook/hook.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "engines": {
@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.3",
+    "aicflow": "^0.1.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
