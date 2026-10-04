@@ -1,7 +1,7 @@
 # 方案 A：任务挂起与恢复（aic park / aic resume）
 
-- 状态：设计定稿 v3，待重新开发（2026-10-03 曾按 v3 完整实现并全部验证通过——22/22 单测＋全流程冒烟，随后按用户决策撤销以优先开发 hooks 防绕过机制，实现代码暂存于 git stash"park/resume 实现"条目；hooks 落地后按本文档重启，§10 三项维持原议：park 无确认、唯一挂起直接恢复、--abandoned 留作后续）
-- 日期：2026-10-03（v2：2026-10-02）
+- 状态：设计定稿 v4，待开发（2026-10-03 曾按 v3 完整实现并全部验证通过——22/22 单测＋全流程冒烟，随后按用户决策撤销以优先开发 hooks 防绕过机制，实现代码暂存于 git stash"park/resume 实现"条目，取回策略见 §11；hooks 落地后重启，v4 修订：hooks 注入缺口修补、--abandoned 纳入本次、park 输出减为单行（代码处置不提示不建议、AI 不参与）、引导新增动工闸门（TRD 确认 ≠ 动工许可，§5）、§10 三项全部落定）
+- 日期：2026-10-05（v4；v3：2026-10-03，v2：2026-10-02）
 - 背景：当前是严格单任务状态机，插单只有 `aic done --force` 一条路，且 force 归档不留"未完成"标记、无法恢复，污染留痕历史
 
 ## 1. 状态机变化
@@ -26,11 +26,10 @@
 - current.md 结构异常且无 `-f` → 打印错误、退出码 2（与 done 一致）；`-f` 下 slug 回退 `task`、无法读指针则只移 current.md 并 ⚠ 提示（与 done 一致）。
 - 正常路径：把 current.md + spec 指针指向的需求目录**整组移动**到 `parked/`，**不改动文件内容**——park 是纯 rename，CLI 不碰 current.md 内容（与 archiveTask 行为一致，「## 备注」等草稿区随卡同行）。
 - **无任何确认交互**。理由：park 本身就是"这任务没做完"的正常表达，未完成确认是噪音；操作完全可逆、不产生"完成"声明，不像 done 需要防误触。AI 在非 TTY 下可无障碍执行。
-- 完成后打印（两行，增量只有第二行的提示——park 只移动文档、**不动代码**，挂起任务的半成品改动仍留在工作区，这是它与后续任务的真实耦合通道，必须在决策点递上）：
+- 完成后打印**单行**（v4 修订：原第二行"建议先提交或 stash 未提交改动"删去——代码怎么处置（commit / stash / 不动）完全是用户自己的领域，CLI 不建议、AI 不参与，提示只会诱导 AI 代做 stash/commit 出乱子。park 只移动文档、**不动代码**，挂起任务的半成品改动留在工作区，用户自行决定处置）：
 
   ```
   已挂起任务：xxx → .ai-continue/parked/<时间戳>-<slug>/（可 aic resume 恢复）
-  提示：park 只移动文档、不动代码，建议先提交或 stash 未提交改动再开新任务。
   ```
 
 ### `aic resume [选择]`
@@ -57,6 +56,14 @@
   设计理由（见 §6 设计预算）：恢复后的纪律放在 AI 此刻注意力最集中的 stdout 里，**在动作发生的时刻递上指令**，比引导文档里的常驻小字规则可靠得多。
 - 恢复后顺带 parse 一次，结构有问题不拦截（文件从挂起那一刻就没变过），只 ⚠ 提示跑 `aic status` 看修复建议。
 
+### `aic done --abandoned`（放弃归档，v4 纳入）
+
+- 语义：任务确定作废、不做了。与 park（暂存可恢复）构成完整的出口语义：**做完 / 暂存 / 放弃**三出口各得其所，"确定不要了"不再被迫走污染历史的 force。
+- 归档动作与正常 done 完全一致（整组移入 `archive/`），**目录名追加 `-abandoned` 后缀**（`archive/<时间戳>-<slug>-abandoned/`）作为放弃标记——CLI 不碰文件内容的既有原则不破，`ls archive/` 一眼可辨，git 下也是纯 rename。
+- **跳过验收门禁**：放弃本就无验收可言；结构检查与普通 done 一致（结构异常仍退出码 2；`-f` 仍跳过全部门禁）。
+- 与 `--accepted` 互斥：同时给出即报错、退出码 1。
+- 完成后输出点明放弃语义：`已放弃并归档任务：xxx → archive/<时间戳>-<slug>-abandoned/（未完成，历史带放弃标记）`。
+
 ### `aic status` 的小改动
 
 无任务且 `parked/` 非空时，输出改为两行（parked 为空时保持现状 `尚未开始任务：请先运行 aic start <任务名>` 不变）：
@@ -66,7 +73,9 @@
 有 N 个挂起任务，可 aic resume 恢复
 ```
 
-退出码仍为 1（"无任务"语义不变，挂起提示是附加行）。这让**挂起任务的发现拥有双通道**：引导（何时 resume）＋ status 输出（会话开始必跑，不依赖引导记忆）。AI 就算把引导忘光，只要照常跑 status，挂起任务照样被递到眼前——发现靠双保险，不怕忘。**有进行中任务时不提挂起**（避免噪音，注意力单任务；发现挂起的通道是无任务时的 status 与 resume 清单）。
+退出码仍为 1（"无任务"语义不变，挂起提示是附加行）。这让**挂起任务的发现拥有双通道**：引导（何时 resume）＋ status 输出（不依赖引导记忆）。AI 就算把引导忘光，挂起任务照样被递到眼前——发现靠双保险，不怕忘。**有进行中任务时不提挂起**（避免噪音，注意力单任务；发现挂起的通道是无任务时的 status 与 resume 清单）。
+
+**v4 修订——hooks 注入是第三条通道，且必须单独补**：hooks 落地后，会话开始的任务状态由 `handleSessionStart`（`core/hook/handlers.ts`）直接 `readCurrent` 拼三态文案注入，**不经过 status 命令**——本节的 status 改动对 hooks 注入不自动生效。且注入已给了任务状态，AI 很可能就此跳过 `aic status`，原设计"AI 会话开始必跑 status"的前提被 hooks 自身削弱。因此 `handleSessionStart` 的无任务分支须同样检查 `parked/`（复用 `listParked()`），非空时在注入文案追加一行 `有 N 个挂起任务，可 aic resume 恢复`，措辞与本节对齐。**status 输出与 hooks 注入两处文案今后须同步维护**（ASK_REASON / PROMPT_REMINDER 经评估不加挂起提示：SessionStart 每会话必注入已覆盖发现职责，ask 的决策点是"放不放行这次编辑"，塞入 resume 提示稀释文案，违背 §6 设计预算）。
 
 ### 与 start / done 的联动（输出级修正）
 
@@ -108,10 +117,11 @@
 在「收到新需求时」和「会话开始时」之间加一小节：
 
 > ### 插入新需求（任务切换）
-> 当前有进行中任务而新需求更紧急时：`aic park` 挂起当前任务（断点与文档整组保存、可随时恢复），`aic start` 开新任务；插入任务完成后 `aic resume` 恢复原任务。**不得用 `aic done --force` 处理未完成任务**——force 归档在历史上看起来像"已完成"。
+> 当前有进行中任务而新需求更紧急时：`aic park` 挂起当前任务（断点与文档整组保存、可随时恢复），`aic start` 开新任务；插入任务完成后 `aic resume` 恢复原任务。**不得用 `aic done --force` 处理未完成任务**——force 归档在历史上看起来像"已完成"；确定作废的任务用 `aic done --abandoned` 放弃归档（历史带放弃标记）。
 
 「会话开始时」加一条：status 提示有挂起任务时，与用户确认是否恢复。
 「执行中」加一句：「## 备注」许可（见 §4）。
+**「收到新需求时」3.4 步改写（v4 新增，用户要求）**：TRD 确认后**不得直接动工**——须向用户确认"是否可以开始实施"，获**明确动工许可**后才执行 `aic start <任务名>` 开始编码。方案确认（PRD/TRD 认可）与动工批准是两个独立闸门，前者只代表方案成立，不代表"现在就做"。
 
 **注意**：恢复后重读 PRD/TRD、核对下一步的纪律**不进引导**——放在 resume 的命令输出里（见 §2）。
 
@@ -138,26 +148,38 @@
 - 恢复回来的 specs 目录重新出现，反而会触发 AI 建档时的同名确认——良性。
 - 归档/挂起目录均带时间戳前缀，同名任务不撞目录。
 - 多轮 park → start → done → resume 往返推演，状态机闭合。
-- park 不处理代码改动（只移文档），工作区残留的半成品代码由输出提示引导用户 commit/stash；最坏情况是两个任务的提交混杂，人可见、可挽回，属"许可/提示"档的正常代价。
+- park 不处理代码改动（只移文档），工作区残留的半成品代码**不提示、不建议、AI 不参与**，处置（commit / stash / 不动）完全由用户自行决定（v4 修订）；最坏情况是两个任务的提交混杂，人可见、可挽回——这是把代码处置权收归用户的自觉代价。
+- **hooks 无任务编辑上抛 × 挂起态（v4）**：有挂起任务但无进行中任务时，current.md 仍不存在 → hooks 照常按"无任务"拦截文件编辑、上抛用户。这是**预期行为**（恢复任务前本就该先确认），不是 bug，实现时不得"顺手修掉"。
+- **挂起发现的通道现状（v4）**：status 输出与 SessionStart 注入是两条独立通道（后者不经 status 命令），文案须双处同步维护（见 §2 修订）。
 
 ## 8. 波及面与工作量
 
 | 改动 | 内容 |
 |---|---|
 | `core/current.ts` | `PARKED_DIR` 常量、`moveTaskGroup` 重构、`listParked()`、`resumeTask()`（含冲突检测），约 100 行 |
-| `commands/` | `park.ts`、`resume.ts`（含 mini-status 与行动提示输出），status.ts 无任务分支改造，start.ts / done.ts 按 §2 联动修正确认提示，约 150 行 |
+| `commands/` | `park.ts`、`resume.ts`（含 mini-status 与行动提示输出）、`done.ts` 加 `--abandoned`（`-abandoned` 目录后缀标记＋跳过验收门禁＋与 `--accepted` 互斥），status.ts 无任务分支改造，start.ts / done.ts 按 §2 联动修正确认提示，约 180 行 |
+| `core/hook/handlers.ts` | SessionStart 无任务分支加挂起提示（复用 `listParked()`，措辞与 status 对齐，见 §2 v4 修订），约 10 行 |
 | `index.ts` | 注册 park/resume 两个命令；start 命令描述措辞同步 |
-| 测试 | `current.test.ts` 补 park/resume/listParked 用例（挂起→恢复往返、指针冲突、多挂起、无内容篡改） |
+| 测试 | `current.test.ts` 补 park/resume/listParked/--abandoned 用例（挂起→恢复往返、指针冲突、多挂起、无内容篡改、放弃后缀标记、互斥校验）；`hook.test.ts` 补 SessionStart 挂起提示用例 |
 | 文档 | README 双语命令表与文件布局、wiki 五页：cli.md（命令节+退出码矩阵）、format.md（目录布局+备注区）、architecture.md（状态机+数据流+模块图）、Home.md（工作循环）、guide-injection.md（引导变五节）、development.md（冒烟流程加 park→resume 路径） |
 
-代码量约 350 行以内（含测试），文档更新量与代码相当。退出码协议不变：park 的 1/2、resume 的 1 沿用"1=没有可操作对象或拒绝、2=状态坏了"的既有语义（已收敛为 `ExitCode` 枚举），AI 客户端无新概念。
+代码量约 450 行以内（含测试），文档更新量与代码相当。退出码协议不变：park 的 1/2、resume 的 1、`--abandoned` 参数互斥的 1 沿用"1=没有可操作对象或拒绝、2=状态坏了"的既有语义（已收敛为 `ExitCode` 枚举），AI 客户端无新概念。
 
 ## 9. 范围外风险记录（与本方案无耦合，单独处理）
 
 npm registry 上存在**第三方包 `aic`**（v1.0.0，无关项目），而本工具包名是 `ai-continue`（未发布）。裸 `npx aic` 仅在项目 node_modules 内装有本工具时解析到本地；未安装时 npx 会**静默下载并执行第三方的 `aic` 包**。注入引导推荐 `npx aic` 的前提是"已作为依赖安装"；未来发布 npm 时需处理包名（ai-continue）与 bin 名（aic）不一致带来的 npx 解析问题（npx 按包名解析）。
 
-## 10. 待决策
+## 10. 决策记录（2026-10-05 全部落定）
 
-1. **park 要不要加确认**：建议不加（可逆、无声明性、AI 非交互友好）；如担心误触可加 TTY 确认默认 Y。
-2. **resume 恰好一个挂起时要不要直接恢复**：建议直接恢复，确认环节放在对话层（AI 问用户"要恢复吗"），命令层保持确定性。
-3. **`aic done --abandoned` 要不要一起做**：park 落地后"force 归档半成品"就只剩"确定不要了"的场景，`--abandoned`（归档时打放弃标记）与 park 正好构成完整的出口语义（放弃 vs 暂存），一起做很顺；不做也不影响 park 本身。
+1. **park 不加确认**——落定（维持原议）：可逆、无声明性、AI 非交互友好。
+2. **resume 恰好一个挂起时直接恢复**——落定（维持原议）：确认环节放在对话层（AI 问用户"要恢复吗"），命令层保持确定性。
+3. **`aic done --abandoned` 纳入本次**——落定（v4 变更，原留作后续）：与 park 构成完整出口语义，趁改 done.ts/引导文案同批文件一次到位；设计见 §2。
+
+## 11. stash 取回策略（v4 新增，实施前置事实）
+
+git stash"park/resume 实现"（stash@{0}，基点 a7a3139）**不能整体 apply**：基点之后 hooks 相关提交改动了 8 个重叠文件（README 双语、wiki 四页、`src/index.ts` 等），`git apply --check` 报 7 处冲突；stash 里的 park-resume.md 也是旧版（本文件已提交版本为权威，**不得从 stash 取文档**）。
+
+实施时：
+- **原样取回**（基点后未再变动，可干净套用）：`src/core/current.ts`、`current.test.ts`、`commands/{status,start,done}.ts`、`core/guide.ts`、`guide.test.ts` 的对应 hunk；
+- **按当前基线重写**（hooks 时代已改）：README 双语、wiki、`src/index.ts`、AGENTS.md 的文档与命令注册部分；
+- stash 中的实现须对照本 v4 增量修订核对（--abandoned、handlers.ts、status/status 注入文案为 stash 之后的 additions，不在其中）。
