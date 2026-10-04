@@ -1,0 +1,38 @@
+{
+  "hooks": {
+    "events": {
+      "SessionStart": [
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "node \"${CLAUDE_PROJECT_DIR}/node_modules/aicflow/dist/hook.js\" sessionstart --client zcode"
+            }
+          ]
+        }
+      ],
+      "UserPromptSubmit": [
+        {
+          "hooks": [
+            {
+              "type": "command",
+              "command": "node \"${CLAUDE_PROJECT_DIR}/node_modules/aicflow/dist/hook.js\" userpromptsubmit --client zcode"
+            }
+          ]
+        }
+      ],
+      "PreToolUse": [
+        {
+          "matcher": "Edit|Write|ApplyPatch|apply_patch",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "node \"${CLAUDE_PROJECT_DIR}/node_modules/aicflow/dist/hook.js\" pretooluse --client zcode"
+            }
+          ]
+        }
+      ]
+    },
+    "enabled": true
+  }
+}
