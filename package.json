@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
-    "test": "tsx --test src/core/current.test.ts src/core/guide.test.ts src/core/docs.test.ts src/core/acceptance.test.ts",
+    "test": "tsx --test src/core/current.test.ts src/core/guide.test.ts src/core/docs.test.ts src/core/acceptance.test.ts src/core/hook/hook.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "engines": {

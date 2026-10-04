@@ -4,7 +4,7 @@
 
 通用约定：所有命令以 **`process.cwd()` 为项目根**，不会向上查找父目录；断点文件固定为 `.ai-continue/current.md`。
 
-四命令的使用者：`init` 偏人（一次性接入）；`start` / `status` / `done` 主要由 **AI 按引导调用**（PRD/TRD 双首肯后 start、会话开始 status、验收获认可后 done），人随时可手动跑兜底，TTY 下交互确认代替 `--accepted`。
+命令的使用者：`init` 偏人（一次性接入）；`start` / `status` / `done` 主要由 **AI 按引导调用**（PRD/TRD 双首肯后 start、会话开始 status、验收获认可后 done），人随时可手动跑兜底，TTY 下交互确认代替 `--accepted`。另有钩子管道命令 `hook` / `hooks`（行为详见 [hooks](./hooks.md)）。
 
 ---
 
@@ -19,7 +19,8 @@
    - 有候选 → 已含引导的跳过；无引导的列为追加目标；标记未闭合的跳过并警告。
    - 多目标且非 `-y` → 选序号（回车默认第一个）；单目标且非 `-y` → 确认。
 2. 铺模板：建 `.ai-continue/templates/`，写入 `prd.md` 与 `trd.md`；**存在即跳过**（尊重项目自定义）。
-3. 带任务名参数（`aic init <任务名>`）→ 报错提示改用 `aic start`，退出码 1。
+3. `--hooks`：铺设三客户端（Claude Code / Codex / ZCode）钩子配置，幂等、只增删自身条目；前置要求本项目已安装 aicflow，缺失则跳过并警告；输出明示 Codex 须 `/hooks` 信任及其 ask 降级（详见 [hooks](./hooks.md)）。
+4. 带任务名参数（`aic init <任务名>`）→ 报错提示改用 `aic start`，退出码 1。
 
 ---
 
@@ -84,14 +85,26 @@
 
 ---
 
+## `aic hook <事件> --client <id>` 与 `aic hooks [--remove]`
+
+钩子管道与接入管理，完整行为（三层防线、能力矩阵、安装/卸载）见 [hooks](./hooks.md)。
+
+- `aic hook`：由客户端钩子配置调用（配置直指轻量入口 `dist/hook.js`），stdin 收 payload、stdout 出决策/注入 JSON；也可手动喂样例 payload 调试。正常路径恒退出码 0（拦截/注入语义由 stdout 表达），参数错误 → 1。
+- `aic hooks`：查看/重铺三客户端接入状态（等价 `aic init --hooks` 的铺设动作）。
+- `aic hooks --remove`：按 `dist/hook.js` 特征移除自身条目；用户自有钩子与 ZCode `hooks.enabled` 不动。
+
+---
+
 ## 退出码矩阵
 
 | 命令 | 0 | 1 | 2 |
 |---|---|---|---|
-| `init` | 正常完成 / 已存在跳过 / 用户拒绝注入 | 带任务名参数 | — |
+| `init` | 正常完成 / 已存在跳过 / 用户拒绝注入 / 钩子缺失跳过并警告 | 带任务名参数 | — |
 | `start` | 正常完成 / 已有任务跳过 | 任务名为空 / 传 `--spec` | — |
 | `status` | 正常输出（含指针悬空警告） | 未开始任务 | current.md 结构异常（附修复提示） |
 | `done` | 归档完成 / 用户取消归档 | 未开始任务 / 验收门禁拒绝（悬空、无验收记录、缺 `--accepted`） | 结构异常且未 `--force` |
+| `hook` | 正常处理（含 ask/注入/静默放行与 fail-open） | 事件名或 client 参数错误 | — |
+| `hooks` | 查看 / 铺设 / 卸载完成 | 未安装 aicflow（铺设路径缺失） | — |
 | 任意 | — | 顶层未捕获异常（仅打印 message） | — |
 
 退出码是给 AI 客户端的协议：`1` = 没有任务可续或门禁拒绝，`2` = 状态文件坏了需要先修。spec 指针悬空属于警告，**不影响退出码**。修改任何命令时不要破坏这套语义。

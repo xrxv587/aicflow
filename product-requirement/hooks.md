@@ -87,3 +87,9 @@ aic hook <event> --client <x>         Claude Code → .claude/settings.json（�
 | 2026-10-03 | 通用定位：至少先支持 Claude Code 与 Codex；ZCode 同步做 | 用户："这个 npm 包并不是只给 ZCode 使用" |
 | 2026-10-03 | 触发词偏宽、SessionStart 始终注入、fail-open、不做 Bash 检测 | 讨论收敛 |
 | 2026-10-03 | 开发顺序：hooks → park/resume（从 stash 重启） | 用户："先撤销 park……然后按顺序开发" |
+
+## 后续微调候选（2026-10-04 用户定调：先使用、观察后调整）
+
+- **allow 疲劳软化**：用户频繁点"允许"时防线退化为注意力（设计哲学边界，不可再机械化）；若真实使用中出现无脑点允许，考虑同会话第 N 次 allow 后提醒文案升级。
+- **真机联测补验**：ZCode / Claude Code / Codex 会话内实际触发（弹窗形态、注入呈现、Codex /hooks 信任流程）逐项过一遍能力矩阵——本轮仅完成输出格式与官方文档核对＋payload 级验证。
+- **触发词噪音**：偏宽表实际使用后按需收窄（hooks-防绕过 PRD「未确认」区已记录）。

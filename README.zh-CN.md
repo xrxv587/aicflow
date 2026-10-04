@@ -43,12 +43,17 @@ yarn link
 
 | 命令 | 说明 |
 |---|---|
-| `aic init [-y]` | 项目初始化：把 AI 引导注入项目根的引导文件（CLAUDE.md / AGENTS.md / .cursorrules / GEMINI.md，一个都没有时询问是否新建 AGENTS.md），并铺设 PRD/TRD 模板到 `.ai-continue/templates/`。幂等可重跑，已存在即跳过 |
+| `aic init [-y] [--hooks]` | 项目初始化：把 AI 引导注入项目根的引导文件（CLAUDE.md / AGENTS.md / .cursorrules / GEMINI.md，一个都没有时询问是否新建 AGENTS.md），并铺设 PRD/TRD 模板到 `.ai-continue/templates/`。幂等可重跑，已存在即跳过。`--hooks` 同时铺设 Claude Code / Codex / ZCode 三客户端钩子加固配置（见下节） |
 | `aic start [任务名] [-y]` | 开始一个新任务：创建 `.ai-continue/current.md`（已有任务需先 `aic done`）。PRD/TRD 不经此命令，由 AI 按引导先建文档、双首肯后再 start |
 | `aic status` | 输出当前任务、进度、下一步、需求指针与验收状态；AI 会话开始时执行它来续上任务 |
 | `aic done [-f] [--accepted]` | 归档当前任务：current.md 与需求目录（PRD/TRD）整组移入 `.ai-continue/archive/`。有 PRD 的任务设**验收门禁**：PRD「## 验收」区须有逐条自检记录，且需 `--accepted` 声明验收已获用户认可；`-f` 跳过全部门禁 |
+| `aic hook <事件> --client <id>` / `aic hooks [--remove]` | 钩子管道与接入管理，见下节 |
 
 `status` 退出码：`0` 正常；`1` 未开始任务；`2` current.md 结构异常（输出具体修复提示）。
+
+## 钩子加固（可选）
+
+引导是软约束；钩子把最常被绕过的三个环节升级为客户端级防线（防失误性绕过，不防对抗）：**会话开始**自动注入 `aic status` 报告、**新需求消息**触发分级提醒、**无任务时的文件编辑**上抛用户批准（Claude Code / ZCode 走 `ask`；Codex 官方不支持 ask，降级为模型可见提醒）。`aic init --hooks` 铺设（幂等、只动自身条目），`aic hooks --remove` 卸载。核心 CLI 保持客户端无关，详见 [docs/wiki/hooks.md](./docs/wiki/hooks.md)。
 
 ## 文件约定
 
