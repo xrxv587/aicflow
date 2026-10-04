@@ -1,5 +1,5 @@
 {
-  "name": "ai-continue",
+  "name": "aicflow",
   "version": "0.1.1",
   "description": "AI 协作工作流工具：PRD/TRD 共识先行、断点续接、验收归档全程留痕",
   "license": "MIT",
