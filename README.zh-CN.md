@@ -1,4 +1,4 @@
-# ai-continue
+# aicflow
 
 [English](./README.md) | 简体中文
 
@@ -53,7 +53,7 @@ yarn link
 
 ## 钩子加固（可选）
 
-引导是软约束；钩子把最常被绕过的三个环节升级为客户端级防线（防失误性绕过，不防对抗）：**会话开始**自动注入 `aic status` 报告、**新需求消息**触发分级提醒、**无任务时的文件编辑**上抛用户批准（Claude Code / ZCode 走 `ask`；Codex 官方不支持 ask，降级为模型可见提醒）。`aic init --hooks` 铺设（幂等、只动自身条目），`aic hooks --remove` 卸载。核心 CLI 保持客户端无关，详见 [docs/wiki/hooks.md](./docs/wiki/hooks.md)。
+引导是软约束；钩子把最常被绕过的三个环节升级为客户端级防线（防失误性绕过，不防对抗）：**会话开始**自动注入 `aic status` 报告、**新需求消息**触发分级提醒、**无任务时的文件编辑**上抛用户批准（Claude Code / ZCode 走 `ask`；Codex 官方不支持 ask，降级为模型可见提醒）。支持 Claude Code / Codex / ZCode 三客户端。`aic init --hooks` 铺设（幂等、只动自身条目），`aic hooks --remove` 卸载。核心 CLI 保持客户端无关，详见 [docs/wiki/hooks.md](./docs/wiki/hooks.md)。
 
 ## 文件约定
 

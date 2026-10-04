@@ -1,12 +1,21 @@
 {
-  "name": "ai-continue",
-  "version": "0.1.0",
+  "name": "aicflow",
+  "version": "0.1.2",
   "description": "AI 协作工作流工具：PRD/TRD 共识先行、断点续接、验收归档全程留痕",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xrxv587/team-project.git"
+  },
+  "homepage": "https://github.com/xrxv587/team-project#readme",
+  "bugs": "https://github.com/xrxv587/team-project/issues",
   "bin": {
     "aic": "dist/index.js"
   },
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

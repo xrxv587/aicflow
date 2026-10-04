@@ -1,4 +1,4 @@
-# ai-continue
+# aicflow
 
 English | [简体中文](./README.zh-CN.md)
 
@@ -53,7 +53,7 @@ After that, the `aic` command is available in any project directory.
 
 ## Hooks Hardening (optional)
 
-Guidance is a soft constraint; hooks upgrade the three most-bypassed links into client-level defenses (guards against accidental bypass, not adversarial bypass): **session start** injects the `aic status` report automatically; **new-requirement prompts** trigger a triage reminder; **file edits with no task in progress** are escalated to the user for approval (`ask` on Claude Code / ZCode; Codex degrades to a model-visible reminder). Install with `aic init --hooks` (idempotent, only touches its own entries), uninstall with `aic hooks --remove`. Core CLI stays client-agnostic; details in [docs/wiki/hooks.md](./docs/wiki/hooks.md).
+Guidance is a soft constraint; hooks upgrade the three most-bypassed links into client-level defenses (guards against accidental bypass, not adversarial bypass): **session start** injects the `aic status` report automatically; **new-requirement prompts** trigger a triage reminder; **file edits with no task in progress** are escalated to the user for approval (`ask` on Claude Code / ZCode; Codex degrades to a model-visible reminder). Three clients are supported: Claude Code / Codex / ZCode. Install with `aic init --hooks` (idempotent, only touches its own entries), uninstall with `aic hooks --remove`. Core CLI stays client-agnostic; details in [docs/wiki/hooks.md](./docs/wiki/hooks.md).
 
 ## File Layout
 
