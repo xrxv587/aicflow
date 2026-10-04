@@ -5,10 +5,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xrxv587/team-project.git"
+    "url": "git+https://github.com/xrxv587/aicflow.git"
   },
-  "homepage": "https://github.com/xrxv587/team-project#readme",
-  "bugs": "https://github.com/xrxv587/team-project/issues",
+  "homepage": "https://github.com/xrxv587/aicflow#readme",
+  "bugs": "https://github.com/xrxv587/aicflow/issues",
   "bin": {
     "aic": "dist/index.js"
   },
