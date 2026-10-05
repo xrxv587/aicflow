@@ -11,11 +11,11 @@
 yarn install
 yarn dev <命令>      # tsx 直跑源码，如 yarn dev status
 yarn typecheck       # tsc --noEmit
-yarn test            # node:test 跑 core 层单测（26 例）
+yarn test            # node:test 跑 core 层单测（36 例）
 yarn build           # tsc 编译到 dist/
 ```
 
-单测覆盖 `parse`、引导文案与识别、模板内容与铺设幂等、验收记录判定、钩子（payload 归一化/触发词/路径排除/客户端输出/安装卸载幂等）（`src/core/*.test.ts`）。改这些逻辑必须补用例；命令层（commands/）靠手动冒烟——在临时目录走完整流程（见下），验证退出码（1=未开始任务或门禁拒绝、2=结构坏）与归档结构，务必覆盖"验收拒绝 → `--accepted` 归档"路径。
+单测覆盖 `parse`、park/resume/listParked/`--abandoned` 后缀、引导文案与识别、模板内容与铺设幂等、验收记录判定、钩子（payload 归一化/触发词/路径排除/客户端输出/安装卸载幂等/SessionStart 挂起提示）（`src/core/*.test.ts`）。改这些逻辑必须补用例；命令层（commands/）靠手动冒烟——在临时目录走完整流程（见下），验证退出码（1=未开始任务或门禁拒绝、2=结构坏）与归档结构，务必覆盖"验收拒绝 → `--accepted` 归档"与"park → start → done --abandoned → resume"两条路径。
 
 钩子冒烟补充（临时目录，模拟 node_modules/aicflow 已安装后）：
 
@@ -49,7 +49,7 @@ yarn install && yarn build && yarn link
 
 # 到任意测试项目目录：
 aic init -y                                  # 注入引导 + 铺 PRD/TRD 模板
-# 模拟 AI：复制模板建档（大任务，PRD/TRD 双首肯后）：
+# 模拟 AI：复制模板建档（大任务，PRD/TRD 双确认且用户许可动工后）：
 mkdir -p .ai-continue/specs/试任务
 cp .ai-continue/templates/prd.md .ai-continue/specs/试任务/prd.md
 cp .ai-continue/templates/trd.md .ai-continue/specs/试任务/trd.md
@@ -59,6 +59,12 @@ aic status                                   # 应显示需求与"验收：未�
 aic done --accepted                          # 应被拒（无验收记录）
 # 模拟 AI：在 PRD「## 验收」区写入 "- [x] …" 后：
 aic done --accepted                          # 归档：current + prd + trd 三件齐全
+
+# 插单与放弃路径：
+aic park                                     # 挂起：整组移入 parked/，单行输出
+aic start 插单任务 -y                        # 应提示还有 1 个挂起任务
+aic done --abandoned                         # 放弃归档：archive/ 下带 -abandoned 后缀
+aic resume 试任务                            # 恢复：mini-status + 行动提示，spec 目录按指针归位
 
 yarn unlink
 ```
@@ -77,4 +83,4 @@ yarn unlink
 ## 历史注记
 
 - **2026-09-29 全量重写**：按两层架构（CLI＝工件/状态/门禁，引导＝工作流）推翻旧实现。旧设计中 `aic init <任务名> --spec` 由 CLI 生成 spec 骨架、引导带版本化升级机制——均已废除；spec.md 演化为 AI 按模板生成的 prd.md + trd.md。旧代码可从 git 历史找回。
-- 版本号从 0.1.0 重新起步（用户明确：未投入使用，不写兼容/升级逻辑，不擅改版本号）。
+- 版本号从 0.1.0 重新起步（用户明确：未投入使用，不写兼容/升级逻辑，不擅改版本号；升版须用户提出，如 2026-10-05 park/resume 落地时用户定 0.2.0，`src/index.ts` 与 wiki 同步）。

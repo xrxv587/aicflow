@@ -170,3 +170,22 @@ test('install：未安装 aicflow 时全部跳过并返回 pkgMissing', async ()
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
+
+test('handlers：SessionStart 无任务且 parked/ 非空 → 注入挂起提示（与 status 措辞对齐）', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const tmp = await fs.mkdtemp('aic-hook-parked-');
+  try {
+    // 无任务、无挂起：不提挂起
+    const none = await handleSessionStart({ cwd: tmp });
+    assert.ok(none.kind === 'context' && !none.text.includes('挂起'));
+
+    const parkedDir = path.join(tmp, '.ai-continue/parked/2026-10-05_120000-登录重构');
+    await fs.mkdir(parkedDir, { recursive: true });
+    await fs.writeFile(path.join(parkedDir, 'current.md'), '---\ntask: 登录重构\n---\n\n## 待办\n', 'utf8');
+    const withParked = await handleSessionStart({ cwd: tmp });
+    assert.ok(withParked.kind === 'context' && withParked.text.includes('有 1 个挂起任务，可 aic resume 恢复'));
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true });
+  }
+});

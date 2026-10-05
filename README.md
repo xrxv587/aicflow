@@ -1,4 +1,4 @@
-# ai-continue
+# aicflow
 
 English | [简体中文](./README.zh-CN.md)
 
@@ -15,11 +15,17 @@ The CLI does only three things: **artifacts** (laying down the guidance and temp
 - Big task: confirm goals / boundaries / acceptance first, then
   - AI writes the PRD from the template → user approves
   - AI investigates the codebase and writes the TRD → user approves
-  - `aic start <task-name>` + write the pointer → code
+  - **Approval ≠ go-ahead**: only when the user explicitly says "implement it" → `aic start <task-name>` + write the pointer → code
+
+**Intercutting a new requirement (task switching)**
+
+- When something more urgent arrives, `aic park` suspends the current task (breakpoint + documents saved as a group) → `aic start` the new one
+- When the inserted task is done, `aic resume` brings the original back
+- Never use `aic done --force` on an unfinished task; for tasks that are dead for good, use `aic done --abandoned`
 
 **Session start (incl. cross-session resume)**
 
-- Run `aic status` to pick the task back up
+- Run `aic status` to pick the task back up (with no task but parked ones present, it hints at `aic resume`)
 - While executing: the AI edits current.md and the PRD/TRD directly
 
 **Task completion**
@@ -44,16 +50,18 @@ After that, the `aic` command is available in any project directory.
 | Command | Description |
 |---|---|
 | `aic init [-y] [--hooks]` | Initialize a project: inject the AI guidance into a guidance file at the project root (CLAUDE.md / AGENTS.md / .cursorrules / GEMINI.md; asks whether to create AGENTS.md if none of them exists), and lay the PRD/TRD templates into `.ai-continue/templates/`. Idempotent — safe to re-run; anything that already exists is skipped. With `--hooks`, also lays hardening hook configs for Claude Code / Codex / ZCode (see below) |
-| `aic start [task-name] [-y]` | Start a new task: creates `.ai-continue/current.md` (an existing task must be closed with `aic done` first). PRD/TRD do not go through this command — following the guidance, the AI creates the documents first and runs `start` only after both are approved |
-| `aic status` | Print the current task, progress, next step, requirement pointer, and acceptance status; the AI runs this at the start of a session to pick the task back up |
-| `aic done [-f] [--accepted]` | Archive the current task: moves current.md and the spec directory (PRD/TRD) as a group into `.ai-continue/archive/`. Tasks that have a PRD carry an **acceptance gate**: the PRD "## Acceptance" section must contain a self-check record for each criterion, and `--accepted` must declare that the user has signed off on the acceptance; `-f` skips all gates |
+| `aic start [task-name] [-y]` | Start a new task: creates `.ai-continue/current.md` (an existing task must be closed with `aic done` or suspended with `aic park` first). PRD/TRD do not go through this command — following the guidance, the AI creates the documents first and runs `start` only after both are approved and the user has green-lit implementation |
+| `aic status` | Print the current task, progress, next step, requirement pointer, and acceptance status; the AI runs this at the start of a session to pick the task back up. With no task but a non-empty `parked/`, appends a suspension hint (exit code stays 1) |
+| `aic done [-f] [--accepted] [--abandoned]` | Archive the current task: moves current.md and the spec directory (PRD/TRD) as a group into `.ai-continue/archive/`. Tasks that have a PRD carry an **acceptance gate**: the PRD "## Acceptance" section must contain a self-check record for each criterion, and `--accepted` must declare that the user has signed off on the acceptance; `--abandoned` archives a task as abandoned (for tasks dead for good — the archive directory gets an `-abandoned` suffix, skips the acceptance gate, mutually exclusive with `--accepted`); `-f` skips all gates |
+| `aic park [-f]` | Suspend the current task: moves current.md and the spec directory as a group into `.ai-continue/parked/` (pure move, code untouched; restorable via `aic resume`). No confirmation prompt; prints a single line on success |
+| `aic resume [selection]` | Resume a parked task: a single parked task resumes directly; with several, select by task-name substring or list number; prints progress and the next step after resuming. Pointer-path conflicts fail closed |
 | `aic hook <event> --client <id>` / `aic hooks [--remove]` | Hook plumbing and management — see "Hooks Hardening" below |
 
 `status` exit codes: `0` OK; `1` no task started; `2` malformed current.md (specific repair hints are printed).
 
 ## Hooks Hardening (optional)
 
-Guidance is a soft constraint; hooks upgrade the three most-bypassed links into client-level defenses (guards against accidental bypass, not adversarial bypass): **session start** injects the `aic status` report automatically; **new-requirement prompts** trigger a triage reminder; **file edits with no task in progress** are escalated to the user for approval (`ask` on Claude Code / ZCode; Codex degrades to a model-visible reminder). Install with `aic init --hooks` (idempotent, only touches its own entries), uninstall with `aic hooks --remove`. Core CLI stays client-agnostic; details in [docs/wiki/hooks.md](./docs/wiki/hooks.md).
+Guidance is a soft constraint; hooks upgrade the three most-bypassed links into client-level defenses (guards against accidental bypass, not adversarial bypass): **session start** injects the `aic status` report automatically; **new-requirement prompts** trigger a triage reminder; **file edits with no task in progress** are escalated to the user for approval (`ask` on Claude Code / ZCode; Codex degrades to a model-visible reminder). Three clients are supported: Claude Code / Codex / ZCode. Install with `aic init --hooks` (idempotent, only touches its own entries), uninstall with `aic hooks --remove`. Core CLI stays client-agnostic; details in [docs/wiki/hooks.md](./docs/wiki/hooks.md).
 
 ## File Layout
 
@@ -66,7 +74,8 @@ Guidance is a soft constraint; hooks upgrade the three most-bypassed links into 
 ├── specs/<task>/
 │   ├── prd.md               # requirements side: confirmed (goals/boundaries/acceptance criteria) + open items + acceptance
 │   └── trd.md               # technical side: design, choices, impact scope, steps, risks
-└── archive/<timestamp>-<task>/  # done archive: current.md + spec/{prd,trd}.md
+├── parked/<timestamp>-<task>/   # park suspension: current.md + spec as a group, restorable via resume (multiple may coexist)
+└── archive/<timestamp>-<task>[-abandoned]/  # done archive: current.md + spec/{prd,trd}.md; -abandoned = abandoned-task marker
 ```
 
 `.ai-continue/current.md` (the task state card):

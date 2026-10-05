@@ -13,7 +13,8 @@
 ├── specs/<任务>/
 │   ├── prd.md               # 需求侧：已确认 + 未确认 + 验收
 │   └── trd.md               # 技术侧：方案、选型、影响范围、步骤、风险
-└── archive/<时间戳>-<任务>/  # done 归档：current.md + spec/{prd,trd}.md
+├── parked/<时间戳>-<任务>/   # park 挂起：current.md + spec/{prd,trd}.md 整组，可 resume 恢复（可多个并存）
+└── archive/<时间戳>-<任务>[-abandoned]/  # done 归档：current.md + spec/{prd,trd}.md；-abandoned 后缀 = 放弃归档标记
 ```
 
 ## current.md（CLI 解析，唯一被校验的文件）
@@ -36,7 +37,8 @@ spec: specs/login-refactor/
 - frontmatter：`task` 必填非空；`updated` 可选（约定 `YYYY-MM-DD HH:mm` 本地时间，缺失显示"未知"）；`spec` 可选（相对 `.ai-continue/` 的目录，如 `specs/login-refactor/`，**由 AI 建档后写入**，CLI 不生成）。key 匹配 `^(\w+):`。
 - 「## 待办」**唯一必填章节**；checkbox 正则：`/^\s*-\s+\[( |x|X)\]\s*(.*)$/`——空行合法跳过；非 checkbox 非空行**报错**（退出码 2 的主要来源）；`- [ ]` 空文字静默忽略；`[X]` 大写也算完成。
 - 「## 下一步」：自由文本（约定 1-3 行，精确到文件/函数）。
-- 「## 待办」「## 下一步」之外的章节一律忽略、不校验。
+- 「## 备注」：草稿区（引导许可，非义务）——未走通的尝试、进行中的调查线索记 1-3 行；恢复任务时先核对再采信，问题解决后删除。
+- 「## 待办」「## 下一步」之外的章节一律忽略、不校验（「## 备注」因此无需解析器支持）。
 - 解析器边界：首行必须 `---`（允许行首空白）；闭合 `---` 整行精确匹配；同名 `##` 章节出现多次时内容合并到第一个；任务名含换行会破坏 frontmatter（传入前自行避免）。
 
 ## PRD / TRD（AI 按模板生成，CLI 只认两条不变量）
@@ -58,4 +60,5 @@ TRD 章节：方案概述 / 设计决策与选型（含理由）/ 影响范围�
 
 - specs 目录名由 AI 按引导自取：任务名把空格与 `\ / : * ? " < > |` 替换为 `-`；同名目录已存在时先与用户确认是否同一任务。
 - `slugify(task)`（CLI 侧同规则）：替换非法字符与空白、去首尾 `-`、截断 40 字符、空回退 `task`——仅用于归档目录命名。
-- 归档目录：`archive/YYYY-MM-DD_HHMMSS-<slug>/`，内含 `current.md` 与 `spec/`（原 `specs/<任务>/` 整目录按**指针值**移入，含 prd.md/trd.md 及 AI 添加的任何附加文件）。
+- 归档目录：`archive/YYYY-MM-DD_HHMMSS-<slug>/`，内含 `current.md` 与 `spec/`（原 `specs/<任务>/` 整目录按**指针值**移入，含 prd.md/trd.md 及 AI 添加的任何附加文件）；带 `--abandoned` 时为 `archive/YYYY-MM-DD_HHMMSS-<slug>-abandoned/`。
+- 挂起目录：`parked/YYYY-MM-DD_HHMMSS-<slug>/`（命名规则与 archive 完全一致，无 `-abandoned` 后缀——挂起无"完成/放弃"声明语义），内含 `current.md` 与 `spec/`；恢复时 spec 目录按 current.md frontmatter 的指针值移回原路径。时间戳前缀即挂起时间（`aic resume` 的 mini-status 展示用），可多个并存。

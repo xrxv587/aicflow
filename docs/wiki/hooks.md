@@ -8,7 +8,7 @@
 
 | 层 | 钩子事件 | 行为 | 强度 |
 |---|---|---|---|
-| 入口提醒 | `UserPromptSubmit` | 消息命中触发词（中英偏宽表）→ 注入"先复述分级；大任务 PRD/TRD 双首肯"提醒 | 提醒 |
+| 入口提醒 | `UserPromptSubmit` | 消息命中触发词（中英偏宽表）→ 注入"先复述分级；大任务 PRD/TRD 双确认"提醒 | 提醒 |
 | 过程上抛 | `PreToolUse`（Edit/Write/ApplyPatch） | 无 `.ai-continue/current.md` 的项目内文件编辑 → Claude/ZCode 返回 `ask` 上抛用户批准；Codex 降级为模型可见提醒 | 用户拍板 / 提醒 |
 | 会话续接 | `SessionStart` | 注入 `aic status` 三态（任务报告 / 无任务 / 结构异常修复提示） | 注入 |
 

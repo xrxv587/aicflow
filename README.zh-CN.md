@@ -1,4 +1,4 @@
-# ai-continue
+# aicflow
 
 [English](./README.md) | 简体中文
 
@@ -13,13 +13,19 @@ CLI 只做三件事：**工件**（引导与模板的铺设）、**状态**（cu
 - AI 复述理解，只问会改变做法的问题
 - 小改动：一句话对齐 → `aic start` → 直接做
 - 大任务：先确认目标 / 边界 / 验收，然后
-  - AI 用模板写 PRD → 用户首肯
-  - AI 调研代码库写 TRD → 用户首肯
-  - `aic start <任务名>` + 写指针 → 编码
+  - AI 用模板写 PRD → 用户确认
+  - AI 调研代码库写 TRD → 用户确认
+  - **确认 ≠ 动工**：用户明确许可实施 → `aic start <任务名>` + 写指针 → 编码
+
+**插入新需求（任务切换）**
+
+- 更紧急时 `aic park` 挂起当前任务（断点与文档整组保存）→ `aic start` 开新任务
+- 插入任务完成后 `aic resume` 恢复原任务
+- 不得用 `aic done --force` 处理未完成任务；确定作废用 `aic done --abandoned`
 
 **会话开始（含跨会话续接）**
 
-- 执行 `aic status` 续上当前任务
+- 执行 `aic status` 续上当前任务（无任务且有挂起时提示可 `aic resume`）
 - 执行中：AI 直接编辑 current.md 与 PRD/TRD
 
 **任务完成**
@@ -44,16 +50,18 @@ yarn link
 | 命令 | 说明 |
 |---|---|
 | `aic init [-y] [--hooks]` | 项目初始化：把 AI 引导注入项目根的引导文件（CLAUDE.md / AGENTS.md / .cursorrules / GEMINI.md，一个都没有时询问是否新建 AGENTS.md），并铺设 PRD/TRD 模板到 `.ai-continue/templates/`。幂等可重跑，已存在即跳过。`--hooks` 同时铺设 Claude Code / Codex / ZCode 三客户端钩子加固配置（见下节） |
-| `aic start [任务名] [-y]` | 开始一个新任务：创建 `.ai-continue/current.md`（已有任务需先 `aic done`）。PRD/TRD 不经此命令，由 AI 按引导先建文档、双首肯后再 start |
-| `aic status` | 输出当前任务、进度、下一步、需求指针与验收状态；AI 会话开始时执行它来续上任务 |
-| `aic done [-f] [--accepted]` | 归档当前任务：current.md 与需求目录（PRD/TRD）整组移入 `.ai-continue/archive/`。有 PRD 的任务设**验收门禁**：PRD「## 验收」区须有逐条自检记录，且需 `--accepted` 声明验收已获用户认可；`-f` 跳过全部门禁 |
+| `aic start [任务名] [-y]` | 开始一个新任务：创建 `.ai-continue/current.md`（已有任务需先 `aic done` 或 `aic park`）。PRD/TRD 不经此命令，由 AI 按引导先建文档、双确认且用户许可动工后再 start |
+| `aic status` | 输出当前任务、进度、下一步、需求指针与验收状态；AI 会话开始时执行它来续上任务。无任务且 `parked/` 非空时追加挂起提示（退出码仍 1） |
+| `aic done [-f] [--accepted] [--abandoned]` | 归档当前任务：current.md 与需求目录（PRD/TRD）整组移入 `.ai-continue/archive/`。有 PRD 的任务设**验收门禁**：PRD「## 验收」区须有逐条自检记录，且需 `--accepted` 声明验收已获用户认可；`--abandoned` 放弃归档（确定作废的任务，归档目录带 `-abandoned` 后缀，豁免验收门禁，与 `--accepted` 互斥）；`-f` 跳过全部门禁 |
+| `aic park [-f]` | 挂起当前任务：current.md 与需求目录整组移入 `.ai-continue/parked/`（纯移动、不碰代码，可 `aic resume` 恢复）。无确认交互，成功输出单行 |
+| `aic resume [选择]` | 恢复挂起的任务：唯一挂起直接恢复；多个时按任务名子串或清单序号选择；恢复后输出进度与下一步。指针路径冲突 fail-closed 拒绝 |
 | `aic hook <事件> --client <id>` / `aic hooks [--remove]` | 钩子管道与接入管理，见下节 |
 
 `status` 退出码：`0` 正常；`1` 未开始任务；`2` current.md 结构异常（输出具体修复提示）。
 
 ## 钩子加固（可选）
 
-引导是软约束；钩子把最常被绕过的三个环节升级为客户端级防线（防失误性绕过，不防对抗）：**会话开始**自动注入 `aic status` 报告、**新需求消息**触发分级提醒、**无任务时的文件编辑**上抛用户批准（Claude Code / ZCode 走 `ask`；Codex 官方不支持 ask，降级为模型可见提醒）。`aic init --hooks` 铺设（幂等、只动自身条目），`aic hooks --remove` 卸载。核心 CLI 保持客户端无关，详见 [docs/wiki/hooks.md](./docs/wiki/hooks.md)。
+引导是软约束；钩子把最常被绕过的三个环节升级为客户端级防线（防失误性绕过，不防对抗）：**会话开始**自动注入 `aic status` 报告、**新需求消息**触发分级提醒、**无任务时的文件编辑**上抛用户批准（Claude Code / ZCode 走 `ask`；Codex 官方不支持 ask，降级为模型可见提醒）。支持 Claude Code / Codex / ZCode 三客户端。`aic init --hooks` 铺设（幂等、只动自身条目），`aic hooks --remove` 卸载。核心 CLI 保持客户端无关，详见 [docs/wiki/hooks.md](./docs/wiki/hooks.md)。
 
 ## 文件约定
 
@@ -66,7 +74,8 @@ yarn link
 ├── specs/<任务>/
 │   ├── prd.md               # 需求侧：已确认（目标/边界/验收标准）+ 未确认 + 验收
 │   └── trd.md               # 技术侧：方案、选型、影响范围、步骤、风险
-└── archive/<时间戳>-<任务>/  # done 归档：current.md + spec/{prd,trd}.md
+├── parked/<时间戳>-<任务>/   # park 挂起：current.md + spec 整组，可 resume 恢复（可多个并存）
+└── archive/<时间戳>-<任务>[-abandoned]/  # done 归档：current.md + spec/{prd,trd}.md；-abandoned = 放弃标记
 ```
 
 `.ai-continue/current.md`（任务状态卡）：

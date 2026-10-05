@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { parse, prdFilePath, readCurrent } from '../core/current.js';
+import { listParked, parse, prdFilePath, readCurrent } from '../core/current.js';
 import { hasAcceptanceRecord } from '../core/acceptance.js';
 import { ExitCode } from '../core/exit.js';
 
@@ -7,7 +7,13 @@ export async function runStatus(): Promise<void> {
   const cwd = process.cwd();
   const content = await readCurrent(cwd);
   if (content === null) {
-    console.error('尚未开始任务：请先运行 aic start <任务名>');
+    const parkedCount = (await listParked(cwd)).length;
+    if (parkedCount === 0) {
+      console.error('尚未开始任务：请先运行 aic start <任务名>');
+    } else {
+      console.error('尚未开始任务：可 aic start <任务名> 开新任务');
+      console.error(`有 ${parkedCount} 个挂起任务，可 aic resume 恢复`);
+    }
     process.exitCode = ExitCode.NoTaskOrRejected;
     return;
   }

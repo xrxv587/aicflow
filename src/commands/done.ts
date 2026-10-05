@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { archiveTask, parse, prdFilePath, readCurrent } from '../core/current.js';
+import { archiveTask, listParked, parse, prdFilePath, readCurrent } from '../core/current.js';
 import { confirm } from '../core/prompt.js';
 import { hasAcceptanceRecord } from '../core/acceptance.js';
 import { ExitCode } from '../core/exit.js';
@@ -12,8 +12,15 @@ async function readPrd(cwd: string, spec: string): Promise<string | null> {
   }
 }
 
-export async function runDone(force: boolean, accepted: boolean): Promise<void> {
+export async function runDone(force: boolean, accepted: boolean, abandoned: boolean): Promise<void> {
   const cwd = process.cwd();
+
+  if (accepted && abandoned) {
+    console.error('「--accepted」与「--abandoned」互斥：验收归档与放弃归档只能选一个。');
+    process.exitCode = ExitCode.NoTaskOrRejected;
+    return;
+  }
+
   const content = await readCurrent(cwd);
   if (content === null) {
     console.error('尚未开始任务：没有可归档的任务');
@@ -33,7 +40,8 @@ export async function runDone(force: boolean, accepted: boolean): Promise<void> 
 
   const data = result.ok ? result.data : null;
   const undone = data ? data.todos.filter((t) => !t.done) : [];
-  if (undone.length > 0 && !force) {
+  // --abandoned 本身就是放弃声明，未完成确认是噪音；结构校验仍照常
+  if (undone.length > 0 && !force && !abandoned) {
     console.log(`仍有 ${undone.length} 项未完成：`);
     for (const t of undone) {
       console.log(`  [ ] ${t.text}`);
@@ -45,8 +53,8 @@ export async function runDone(force: boolean, accepted: boolean): Promise<void> 
     }
   }
 
-  // 出口门禁：有 PRD 的任务必须先验收并获用户认可才能归档
-  if (data?.spec && !force) {
+  // 出口门禁：有 PRD 的任务必须先验收并获用户认可才能归档；放弃归档豁免（放弃无验收可言）
+  if (data?.spec && !force && !abandoned) {
     const prd = await readPrd(cwd, data.spec);
     if (prd === null) {
       console.error(`需求目录或 prd.md 缺失：${data.spec}。修复指针后重试，或使用 --force 跳过。`);
@@ -73,10 +81,19 @@ export async function runDone(force: boolean, accepted: boolean): Promise<void> 
     }
   }
 
-  const archived = await archiveTask(cwd, data?.task ?? 'task', data?.spec ?? null);
-  console.log(`已归档到 ${archived.dir}`);
+  const archived = await archiveTask(cwd, data?.task ?? 'task', data?.spec ?? null, abandoned);
+  if (abandoned) {
+    console.log(`已放弃并归档任务：${data?.task ?? 'task'} → ${archived.dir}（未完成，历史带放弃标记）`);
+  } else {
+    console.log(`已归档到 ${archived.dir}`);
+  }
   if (archived.specMissing) {
     console.log(`⚠ 需求目录缺失，仅归档了 current.md：${archived.specMissing}`);
   }
-  console.log('可运行 aic start <新任务名> 开始下一个任务。');
+  const parkedCount = (await listParked(cwd)).length;
+  if (parkedCount > 0) {
+    console.log(`或 aic resume 恢复挂起的任务（${parkedCount} 个）。`);
+  } else {
+    console.log('可运行 aic start <新任务名> 开始下一个任务。');
+  }
 }
