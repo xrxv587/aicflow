@@ -41,5 +41,26 @@ created: 2026-10-05 00:37
 ## 未确认
 > 执行途中的疑问、倾向、已验证但未背书的发现。用户确认后上移到「## 已确认」，判定无关则删除。
 
+### code-review（high）留观项（2026-10-05，用户决策：单会话使用，暂不修）
+
+1. moveTaskGroup 同秒同名碰撞：archive 侧既有行为，park 经共用重构继承；单会话脚本化 park→resume→park 循环才可能触发。可加存在即递增后缀。
+2. `abandoned` 参数在 dest='parked' 时静默忽略，参数形状误导调用方；可把后缀逻辑收进 archiveTask。
+3. 挂起提示文案四处复制（done/start/status/handlers），措辞已现微漂移；可收敛为 core 共享常量。
+4. resume 的 mini-status 与 status 重复实现进度/下一步提取；可共享助手防分叉。
+5. 多客户端并发覆盖窗口（resume 选择等待期间他方建卡被覆盖）：用户确认不会多 agent 同仓操作，不修；若未来支持并发需给 current.md 恢复加 fail-closed 复查。
+
 ## 验收
 > 按「已确认 · 验收标准」逐条自检：`- [x] 标准 —— 通过，证据：…`。全部通过并获用户认可后才可 `aic done --accepted`。
+
+- [x] 1. park 整组移动/零篡改/单行输出/退出码 —— 通过，证据：current.test.ts「park → resume 往返」（内容字节相等）与「指针悬空」用例；冒烟 §1/§5 单行输出；park 无任务 exit=1（补验）、结构异常退出码 2 与 done 共用同一门禁分支
+- [x] 2. resume 全路径 —— 通过，证据：冒烟 §7（多挂起非 TTY 列清单 exit=1）、§8（子串选择 + mini-status：进度 1/2、挂起时间、下一步、行动提示）；单测「指针冲突 fail-closed：拒绝且两侧不动」；补验无挂起 exit=1、已有进行中任务 exit=1
+- [x] 3. done --abandoned —— 通过，证据：冒烟 §6（archive/2026-10-05_122639-抛弃任务-abandoned/）、§10（--accepted 与 --abandoned 互斥 exit=1）；current.test.ts「-abandoned 后缀」用例（parked 目标不受 abandoned 影响）；豁免验收门禁由 done.ts 门禁条件 `&& !abandoned` 保证，结构校验保持
+- [x] 4. status 两行输出 —— 通过，证据：冒烟 §2（两行 + exit=1）；parked 为空时保持原文案（代码分支）
+- [x] 5. hooks SessionStart 挂起提示 —— 通过，证据：hook.test.ts「SessionStart 无任务且 parked/ 非空 → 注入挂起提示」，断言文案与 status 措辞对齐；parked 为空不提挂起
+- [x] 6. 三处联动修正 —— 通过，证据：冒烟 §3（start 提示"还有 1 个挂起任务"）、§4（start 已有任务提示"先 aic done（已完成）或 aic park（挂起未完成）"）、§6（done 收尾"或 aic resume 恢复挂起的任务（2 个）"）
+- [x] 7. 引导文案 —— 通过，证据：guide.test.ts 四组断言（插入新需求协议、动工闸门「TRD 确认 ≠ 动工许可」、备注许可与恢复确认、「首肯」禁用）；本仓库 AGENTS.md 已删旧块重注入（grep 动工闸门/插入新需求 命中，「首肯」0 处）
+- [x] 8. 单测与冒烟 —— 通过，证据：yarn test 36/36 全绿（新增 10 例：park/resume 往返、排序、parked 不存在、指针冲突、悬空指针、abandoned 后缀、SessionStart 挂起提示、引导 3 组）；冒烟 10 步 + 补验 3 步全过
+- [x] 9. 文档同步 —— 通过，证据：README 双语（工作循环、命令表、文件布局）、wiki 六页（cli 命令节+park/resume 节+退出码矩阵、format parked/ 布局+备注区、architecture 状态机/数据流五条/边界清单、Home 工作循环+决策记录、guide-injection 五段、development 冒烟补插单路径）、AGENTS.md 重注入
+- [x] 10. 措辞统一 —— 通过，证据：`grep -rn 首肯 src docs README* AGENTS.md product-requirement` 仅剩 3 处：guide.test.ts 的负向断言（防回归，有意保留）、product-requirement/hooks.md 的 3 处历史记述（2026-10-03 事件记录，非面向用户输出，保留历史原貌）
+
+> 复审轮（2026-10-05，code-review high）：发现 5 项必修已全部修复并补 3 例单测（fresh-clone spec 父目录缺失自动补齐、缺任务卡友好报错、guide 标题更名防回退）＋命令层 2 项（纯数字名精确匹配优先、挂起时间显示到秒）；39/39 全绿，冒烟复核通过。留观 5 项记入「未确认」。

@@ -5,6 +5,8 @@ import { runInit } from './commands/init.js';
 import { runStart } from './commands/start.js';
 import { runStatus } from './commands/status.js';
 import { runDone } from './commands/done.js';
+import { runPark } from './commands/park.js';
+import { runResume } from './commands/resume.js';
 import { runHook } from './commands/hook.js';
 import { runHooks } from './commands/hooks.js';
 import { ExitCode } from './core/exit.js';
@@ -14,7 +16,7 @@ const program = new Command();
 program
   .name('aic')
   .description('AI 协作工作流工具：PRD/TRD 共识先行、断点续接、验收归档全程留痕')
-  .version('0.1.0');
+  .version('0.2.0');
 
 program
   .command('init')
@@ -33,13 +35,13 @@ program
 
 program
   .command('start')
-  .description('开始一个新任务：创建断点文件（已有任务需先 aic done）')
+  .description('开始一个新任务：创建断点文件（已有任务需先 aic done 或 aic park）')
   .argument('[task]', '任务名')
   .option('-y, --yes', '跳过所有询问，使用默认值')
   .addOption(new Option('--spec', '（已移除）PRD/TRD 由 AI 按引导生成').hideHelp())
   .action((task, options) => {
     if (options.spec) {
-      console.error('aic start 不再接受 --spec：PRD/TRD 由 AI 按引导用模板生成，双首肯后再 aic start');
+      console.error('aic start 不再接受 --spec：PRD/TRD 由 AI 按引导用模板生成，双确认后再 aic start');
       process.exitCode = ExitCode.NoTaskOrRejected;
       return;
     }
@@ -56,7 +58,20 @@ program
   .description('归档当前任务（有 PRD 的任务需先验收并获用户认可）')
   .option('-f, --force', '跳过验收、未完成确认与结构校验')
   .option('--accepted', '声明验收已获用户认可（有 PRD 的任务归档必填）')
-  .action((options) => runDone(options.force, options.accepted ?? false));
+  .option('--abandoned', '放弃归档：任务确定作废，归档目录带放弃标记（与 --accepted 互斥，豁免验收门禁）')
+  .action((options) => runDone(options.force, options.accepted ?? false, options.abandoned ?? false));
+
+program
+  .command('park')
+  .description('挂起当前任务：断点与需求文档整组移入 parked/，可 aic resume 恢复（不碰代码）')
+  .option('-f, --force', '跳过结构校验')
+  .action((options) => runPark(options.force ?? false));
+
+program
+  .command('resume')
+  .description('恢复挂起的任务：唯一挂起直接恢复，多个时按任务名或序号选择')
+  .argument('[selection]', '任务名子串或清单序号')
+  .action((selection) => runResume(selection));
 
 program
   .command('hook')

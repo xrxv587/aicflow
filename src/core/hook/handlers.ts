@@ -1,14 +1,14 @@
-import { readCurrent, parse } from '../current.js';
+import { listParked, readCurrent, parse } from '../current.js';
 import { isWatchedPath } from './paths.js';
 import { isNewRequirementPrompt } from './trigger.js';
 import type { HookPayload } from './payload.js';
 import type { HookOutput } from './clients.js';
 
 const ASK_REASON =
-  '[ai-continue] 当前没有进行中的任务。请先 `aic start <任务名>`（大任务按 AGENTS.md 引导先建 PRD/TRD 并双首肯）；若确认只是小改动，可直接允许本次编辑。';
+  '[ai-continue] 当前没有进行中的任务。请先 `aic start <任务名>`（大任务按 AGENTS.md 引导先建 PRD/TRD 并双确认）；若确认只是小改动，可直接允许本次编辑。';
 
 const PROMPT_REMINDER =
-  '[ai-continue] 检测到可能的新需求。请先复述理解并分级：小改动（单文件、无歧义）一句话对齐后 `aic start <任务名>` 即可开工；大任务（跨会话/多文件）按 AGENTS.md 引导建 PRD/TRD 文档、获用户双首肯后再编码。';
+  '[ai-continue] 检测到可能的新需求。请先复述理解并分级：小改动（单文件、无歧义）一句话对齐后 `aic start <任务名>` 即可开工；大任务（跨会话/多文件）按 AGENTS.md 引导建 PRD/TRD 文档、获用户双确认后再编码。';
 
 /** PreToolUse：有任务静默放行；无任务且路径在拦截范围 → ask 上抛（Codex 由 renderOutput 降级为提醒） */
 export async function handlePreToolUse(p: HookPayload): Promise<HookOutput> {
@@ -32,13 +32,17 @@ export function handleUserPromptSubmit(p: HookPayload): HookOutput {
   return { kind: 'context', text: PROMPT_REMINDER };
 }
 
-/** SessionStart：始终注入任务状态三态（有任务 / 无任务 / 结构异常） */
+/** SessionStart：始终注入任务状态三态（有任务 / 无任务 / 结构异常）；无任务时附带挂起提示（与 status 输出措辞对齐） */
 export async function handleSessionStart(p: HookPayload): Promise<HookOutput> {
   const content = await readCurrent(p.cwd);
   if (content === null) {
+    const parkedCount = (await listParked(p.cwd)).length;
+    const parkedHint = parkedCount > 0 ? `\n[ai-continue] 有 ${parkedCount} 个挂起任务，可 aic resume 恢复。` : '';
     return {
       kind: 'context',
-      text: '[ai-continue] 当前没有进行中的任务。收到新需求时先分级：小改动一句话对齐 + `aic start <任务名>`；大任务按 AGENTS.md 引导建 PRD/TRD 双首肯后再编码。',
+      text:
+        '[ai-continue] 当前没有进行中的任务。收到新需求时先分级：小改动一句话对齐 + `aic start <任务名>`；大任务按 AGENTS.md 引导建 PRD/TRD 双确认后再编码。' +
+        parkedHint,
     };
   }
   const result = parse(content);

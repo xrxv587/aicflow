@@ -45,7 +45,7 @@
 - **恢复后输出 mini-status + 行动提示**（不是只说"已恢复"）：
 
   ```
-  已恢复任务：重构登录模块（进度 2/5，挂起于 2026-10-02 14:30）
+  已恢复任务：重构登录模块（进度 2/5，挂起于 2026-10-02 14:30:05）
   下一步：
     在 src/api/auth.ts 加 refresh 拦截器
 
@@ -175,11 +175,6 @@ npm registry 上存在**第三方包 `aic`**（v1.0.0，无关项目），而本
 2. **resume 恰好一个挂起时直接恢复**——落定（维持原议）：确认环节放在对话层（AI 问用户"要恢复吗"），命令层保持确定性。
 3. **`aic done --abandoned` 纳入本次**——落定（v4 变更，原留作后续）：与 park 构成完整出口语义，趁改 done.ts/引导文案同批文件一次到位；设计见 §2。
 
-## 11. stash 取回策略（v4 新增，实施前置事实）
+## 11. stash 处置记录（v4 曾定取回策略，已作废）
 
-git stash"park/resume 实现"（stash@{0}，基点 a7a3139）**不能整体 apply**：基点之后 hooks 相关提交改动了 8 个重叠文件（README 双语、wiki 四页、`src/index.ts` 等），`git apply --check` 报 7 处冲突；stash 里的 park-resume.md 也是旧版（本文件已提交版本为权威，**不得从 stash 取文档**）。
-
-实施时：
-- **原样取回**（基点后未再变动，可干净套用）：`src/core/current.ts`、`current.test.ts`、`commands/{status,start,done}.ts`、`core/guide.ts`、`guide.test.ts` 的对应 hunk；
-- **按当前基线重写**（hooks 时代已改）：README 双语、wiki、`src/index.ts`、AGENTS.md 的文档与命令注册部分；
-- stash 中的实现须对照本 v4 增量修订核对（--abandoned、handlers.ts、status/status 注入文案为 stash 之后的 additions，不在其中）。
+git stash"park/resume 实现"（stash@{0}，基点 a7a3139）曾因基点后 hooks 提交改动重叠文件而不能整体 apply，v4 曾定"核心代码整文件 checkout、文档按基线重写"的取回策略。**2026-10-05 用户主动丢弃该 stash**——最终从零实现，以本 v4 文档为唯一权威规格；v3 曾实现并全绿（22/22 单测＋冒烟）仅作为方案可行性的信心依据。
